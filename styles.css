@@ -245,9 +245,8 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 .result-group-tiles{display:flex;align-items:flex-end}.result-egg-tile{position:relative;display:block;flex:none}
 .result-count-badge{position:absolute;right:-2px;top:-6px;z-index:1;display:grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:99px;background:#bd4631;color:white;border:1px solid #fff7e2;box-shadow:0 1px 3px #0006;font:800 11px/1 sans-serif}
 
-.orientation-hint{display:none}
-@media (max-width:760px) and (orientation:portrait) and (pointer:coarse){.orientation-hint{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#063e36;color:#fff4c8;text-align:center}.orientation-hint strong{font-size:24px}.orientation-hint small{font-size:13px;color:#d4eddf}.rotate-icon{display:grid;place-items:center;width:68px;height:68px;border:3px solid #f4d67d;border-radius:18px;font-size:55px;line-height:1;animation:rotateHint 2s ease-in-out infinite alternate}@keyframes rotateHint{to{transform:rotate(90deg)}}}
-@media (orientation:landscape) and (max-height:600px) and (max-width:950px){
+@media (orientation:landscape) and (max-height:600px) and (max-width:950px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .topbar{height:42px;min-height:42px;padding:0 8px;flex-wrap:nowrap;justify-content:space-between}.brand{gap:4px}.brand-mark{width:28px;height:28px;font-size:18px}.brand strong{font-size:13px}.brand small,.volume-control{display:none}.header-actions{width:auto;gap:4px}.header-actions .quiet-btn,.header-actions .primary-btn{padding:5px 7px;font-size:11px}.tile-theme-control{padding:2px 3px 2px 6px;font-size:11px}.tile-theme-control select{max-width:78px;padding:3px 2px}
   .table{--board-side:clamp(55px,9.5vw,86px);--board-top:55px;--board-bottom:69px;min-height:calc(100dvh - 42px)}
   .seat-top{top:2px}.seat-top .tile.back{width:clamp(10px,1.55vw,15px);height:auto;aspect-ratio:3/4}.seat-top .player-badge{padding:1px 5px}.seat-top .avatar{width:16px;height:16px}
@@ -259,10 +258,26 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .bao-reveal-overlay{padding:8px 15px;font-size:13px;gap:4px}.bao-reveal-overlay .tile{width:76px;height:101px}
   .result-modal{padding:16px 18px;max-height:calc(100dvh - 12px)}.result-icon{display:none}.result-modal h2{font-size:21px;margin:0 0 4px}.result-modal p{margin:4px 0}.result-shape{font-size:12px}.pattern-list{margin:6px 0}.score-table{margin:6px auto}.result-hands{gap:3px;margin:7px auto}.result-player-row{grid-template-columns:62px minmax(0,1fr);gap:5px;padding:3px 5px}.result-player-info strong{font-size:11px}.result-player-info{font-size:9px}.result-player-tiles .tile.small{width:18px;height:24px;margin:0 1px}.result-player-tiles .tile.back{width:18px;height:24px}
 }
-@media (orientation:landscape) and (max-height:600px) and (max-width:950px){
-  .result-modal{display:grid;grid-template-columns:minmax(190px,.62fr) minmax(0,1.38fr);grid-template-areas:"title title" "detail detail" "summary hands" "notice notice" "again again";gap:3px 10px;align-items:start;padding:9px 14px}
+@media (orientation:landscape) and (max-height:600px) and (max-width:950px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .result-modal[open]{display:grid;grid-template-columns:minmax(190px,.62fr) minmax(0,1.38fr);grid-template-areas:"title title" "detail detail" "summary hands" "notice notice" "again again";gap:3px 10px;align-items:start;padding:9px 14px}
   .result-modal h2{grid-area:title;margin:0}.result-modal #resultDetail{grid-area:detail;margin:0}.result-modal #resultShape{grid-area:shape}.result-modal #patternList{grid-area:patterns;margin:2px 0}
   .result-modal .result-summary{grid-area:summary;width:100%;margin:0;padding:6px 7px}.result-summary .result-shape{font-size:11px}.result-summary .pattern-list{margin:4px 0;gap:3px}.result-summary .pattern-list span{padding:1px 4px;font-size:9px}
   .result-modal .score-table{width:100%;max-width:none;margin:4px 0 0;padding:5px 7px}.result-modal .score-head,.result-modal .score-row{grid-template-columns:minmax(52px,1fr) repeat(3,38px);gap:2px;font-size:10px}.result-modal .result-hands{grid-area:hands;width:100%;max-width:none;margin:0;gap:3px}.result-modal #baoPaoNotice{grid-area:notice;margin:1px 0}.result-modal #playAgainBtn{grid-area:again;justify-self:center;padding:5px 18px;font-size:13px}
   .result-group-label{font-size:8px}.result-count-badge{min-width:13px;height:13px;font-size:9px;top:-5px;right:-3px}
+}
+
+/* In portrait on a phone, rotate only the game's viewport, not the device.
+   Layout sizes use the visible height as their landscape width; native dialogs
+   live in the browser's top layer, so they need the same rotation separately. */
+@media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  html,body{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
+  .game-shell,.loading-overlay{position:fixed;top:0;left:100dvw;width:100dvh;height:100dvw;min-height:0;transform:rotate(90deg);transform-origin:top left}
+  .game-shell{overflow:hidden}
+  .table{--board-side:clamp(72px,9.5dvh,86px);min-height:0;height:auto;flex:1}
+  .seat-bottom{width:min(920px,calc(100% - 16px))}
+  .action-bar{max-width:calc(100% - 16px)}
+  .rule-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .modal[open]{position:fixed;inset:auto;top:6px;left:calc(100dvw - 6px);width:calc(100dvh - 12px);height:calc(100dvw - 12px);max-width:none;max-height:none;margin:0;transform:rotate(90deg);transform-origin:top left;overflow:auto}
+  .error-banner{top:12px;left:calc(100dvw - 12px);right:auto;max-width:calc(100dvh - 24px);transform:rotate(90deg);transform-origin:top left}
 }

@@ -1,0 +1,11 @@
+长春麻将 · 四人麻将（离线版）
+
+1. 解压整个压缩包。
+2. 打开“长春麻将”文件夹，双击 index.html。
+3. 建议用最新版 Chrome 或 Edge 浏览器。
+
+游戏无需安装，也无需联网；请保留 index.html、game.js、styles.css、assets 之间的目录结构，不要只发送 index.html。
+
+当前版本是一名玩家对战三名电脑玩家，不支持多人联网对战。可以把压缩包发给朋友，让朋友在自己的电脑上玩。
+
+牌面素材许可见 assets/tiles/LICENSE.md。

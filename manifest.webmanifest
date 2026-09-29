@@ -3,6 +3,7 @@
   "short_name": "长春麻将",
   "start_url": "./index.html",
   "display": "standalone",
+  "orientation": "landscape",
   "background_color": "#043f37",
   "theme_color": "#086455",
   "icons": [
