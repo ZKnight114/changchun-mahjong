@@ -14,6 +14,13 @@
     <header class="topbar">
       <div class="brand"><span class="brand-mark">春</span><div><strong>长春麻将</strong><small>四人麻将</small></div></div>
       <div class="header-actions">
+        <label class="tile-theme-control" for="tileThemeSelect">牌面
+          <select id="tileThemeSelect" aria-label="切换麻将牌面">
+            <option value="a">A · 经典</option>
+            <option value="b">B · 黑金</option>
+            <option value="c" selected>C · 扁平</option>
+          </select>
+        </label>
         <button id="scoreboardBtn" class="quiet-btn">计分板</button>
         <button id="rulesBtn" class="quiet-btn">规则</button>
         <button id="soundBtn" class="quiet-btn" aria-label="切换声音">声音：开</button>
@@ -24,6 +31,11 @@
 
     <section class="table" aria-label="麻将桌">
       <div id="baoPanel" class="bao-panel" aria-label="宝牌区域"><span>宝牌</span><span id="baoTile"></span></div>
+      <div id="actionCue0" class="action-cue cue-south" aria-hidden="true"></div>
+      <div id="actionCue1" class="action-cue cue-east" aria-hidden="true"></div>
+      <div id="actionCue2" class="action-cue cue-north" aria-hidden="true"></div>
+      <div id="actionCue3" class="action-cue cue-west" aria-hidden="true"></div>
+      <div id="baoRevealOverlay" class="bao-reveal-overlay" aria-hidden="true"><span>看宝</span><div id="baoRevealCard"></div></div>
       <div id="player2" class="seat seat-top"></div>
       <div id="player3" class="seat seat-left"></div>
       <div id="player1" class="seat seat-right"></div>
@@ -53,6 +65,8 @@
     </section>
   </main>
 
+  <div class="orientation-hint" aria-label="请将手机横屏"><span class="rotate-icon">↻</span><strong>请将手机横屏</strong><small>横屏后牌桌和结算会完整显示</small></div>
+
   <div id="loadingOverlay" class="loading-overlay" aria-live="polite">
     <div class="loader-tile">東</div><span>正在装牌…</span>
   </div>
@@ -64,21 +78,22 @@
     <div class="rule-grid">
       <section><b>牌张与行牌</b><p>万、饼、条及东南西北中发白共 136 张。可吃上家、碰杠任意一家；胡牌优先。</p></section>
       <section><b>胡牌门槛</b><p>需三色全、不断幺九、至少一叉；已成合法听牌时可接上家的牌胡牌。9 蛋与中发白、杠牌有对应豁免。</p></section>
-      <section><b>报听与宝牌</b><p>本回合打出一张牌后若成听牌，可立即报听；胡牌自动按最高牌型结算。报听当回合不能看宝，下次轮到自己时先看宝，再摸牌。</p></section>
-      <section><b>番型与结算</b><p>支持平胡、夹胡、飘胡、飘顶、七对与豪华七对；自摸、庄家、对宝、摸宝另计番。点炮者未看宝则包炮。</p></section>
+      <section><b>报听与宝牌</b><p>本回合打出一张牌后若成听牌，可立即报听；胡牌自动按最高牌型结算。报听当回合不能看宝，下次轮到自己时先看宝，再摸牌。宝牌正好能胡则直接对宝胡；可补蛋或开杠则先杠、重新换宝。</p></section>
+      <section><b>番型与结算</b><p>支持平胡、夹胡、飘胡、飘顶、七对与豪华七对。手把一上听只允许飘顶；已有吃牌时，手牌剩四张不能再吃碰成手把一。碰后补杠按本地规则变站立。自摸、庄家、对宝、摸宝另计番。点炮者未看宝则包炮。蛋杠分独立于胡牌番数，按分值由其余三家分别支付。</p></section>
     </div>
-    <p class="rule-note">提示：报听后只能打出刚摸到的牌。没有幺九的听牌只能胡幺九，且不能报听、不能看宝。</p>
+    <p class="rule-note">提示：报听后只能打出刚摸到的牌；新牌可补蛋或开杠，但听张和牌型须保持不变。没有幺九的听牌只能胡幺九，且不能报听、不能看宝。</p>
   </dialog>
 
   <dialog id="resultDialog" class="modal result-modal">
-    <div id="resultIcon" class="result-icon">胡</div>
-    <h2 id="resultTitle">恭喜胡牌</h2>
+    <h2 id="resultTitle">胡牌结算</h2>
     <p id="resultDetail"></p>
-    <strong id="resultShape" class="result-shape"></strong>
-    <div id="patternList" class="pattern-list"></div>
-    <div id="scoreTable" class="score-table"></div>
+    <section id="resultSummary" class="result-summary" aria-label="牌型与分数">
+      <strong id="resultShape" class="result-shape"></strong>
+      <div id="patternList" class="pattern-list"></div>
+      <div id="scoreTable" class="score-table"></div>
+    </section>
     <div id="baoPaoNotice" class="bao-pao-notice" hidden></div>
-    <div id="winningHand" class="winning-hand"></div>
+    <div id="winningHand" class="result-hands" aria-label="四家牌型"></div>
     <button id="playAgainBtn" class="primary-btn large">再来一局</button>
   </dialog>
 
