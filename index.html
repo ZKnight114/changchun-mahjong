@@ -12,7 +12,7 @@
 <body>
   <main class="game-shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">春</span><div><strong>长春麻将</strong><small>四人麻将</small></div></div>
+      <div class="brand"><span class="brand-mark">春</span><div><strong>长春麻将</strong><small>四人麻将</small></div><span id="matchCircleBadge" class="match-circle-badge" aria-label="当前圈数">第1圈</span><span id="onlineConnectionBadge" class="online-connection-badge" hidden></span></div>
       <div class="header-actions">
         <label class="tile-theme-control" for="tileThemeSelect">牌面
           <select id="tileThemeSelect" aria-label="切换麻将牌面">
@@ -25,7 +25,7 @@
         <button id="rulesBtn" class="quiet-btn">规则</button>
         <button id="soundBtn" class="quiet-btn" aria-label="切换声音">声音：开</button>
         <label class="volume-control">音量<input id="volumeSlider" type="range" min="0" max="100" value="55" aria-label="音效音量"></label>
-        <button id="newGameBtn" class="primary-btn">新一局</button>
+        <button id="newGameBtn" class="primary-btn">新一场</button>
       </div>
     </header>
 
@@ -70,21 +70,56 @@
   </div>
   <div id="errorBanner" class="error-banner" role="alert" hidden></div>
 
+  <dialog id="modeDialog" class="modal mode-dialog" aria-labelledby="modeTitle">
+    <span class="mode-mark">春</span>
+    <h2 id="modeTitle">长春麻将</h2>
+    <p>请选择对局方式</p>
+    <button id="modeAiBtn" class="mode-choice mode-choice-active" type="button"><strong>人机对局</strong><small>与三位电脑玩家开始四圈对局</small></button>
+    <button id="modeGroupBtn" class="mode-choice mode-choice-online" type="button"><strong>组局对局</strong><small>创建房间，邀请三位朋友</small></button>
+  </dialog>
+
+  <dialog id="onlineDialog" class="modal online-dialog" aria-labelledby="onlineTitle">
+    <button id="onlineCloseBtn" class="modal-close" type="button" aria-label="退出组局">×</button>
+    <h2 id="onlineTitle">四人组局</h2>
+    <div id="onlineSetup">
+      <label class="online-field">你的昵称<input id="onlineName" maxlength="40" autocomplete="nickname" placeholder="输入 2–20 个字符"><small>2–20 个字符，不能与同房间玩家重名</small></label>
+      <div id="onlineEntry" class="online-entry">
+        <button id="createRoomBtn" class="primary-btn" type="button">创建房间</button>
+        <span>或输入朋友发来的 6 位房间码</span>
+        <input id="roomCodeInput" autocomplete="off" spellcheck="false" inputmode="numeric" maxlength="6" placeholder="6 位数字房间码">
+        <button id="joinRoomBtn" class="quiet-btn" type="button">加入房间</button>
+      </div>
+      <div id="inviteEntry" class="online-entry" hidden>
+        <span>收到房间 <strong id="inviteRoomCode"></strong> 的邀请；请先填写昵称</span>
+        <button id="inviteJoinBtn" class="primary-btn" type="button">起名并进入房间</button>
+      </div>
+      <p id="onlineSetupStatus" class="online-status" role="status"></p>
+    </div>
+    <div id="onlineLobby" hidden>
+      <div class="online-room-line"><strong id="onlineRoomCode"></strong><div class="online-room-actions"><button id="copyRoomCodeBtn" class="quiet-btn" type="button">复制房间码</button><button id="copyInviteBtn" class="quiet-btn" type="button">复制邀请链接</button></div></div>
+      <input id="onlineInviteLink" class="online-invite-link" readonly aria-label="邀请链接">
+      <div id="onlineSeats" class="online-seats"></div>
+      <p id="onlineStatus" class="online-status" role="status">等待玩家加入…</p>
+      <button id="onlineStartBtn" class="primary-btn" type="button" disabled>四人到齐后开始</button>
+    </div>
+  </dialog>
+
   <dialog id="rulesDialog" class="modal">
     <button class="modal-close" aria-label="关闭">×</button>
     <h2>长春麻将规则</h2>
     <div class="rule-grid">
-      <section><b>牌张与行牌</b><p>万、饼、条及东南西北中发白共 136 张。可吃上家、碰杠任意一家；胡牌优先。</p></section>
+      <section><b>牌张与行牌</b><p>万、饼、条及东南西北中发白共 136 张。可吃上家、碰杠任意一家；胡牌优先。固定座位打四圈；庄家胡牌连庄，否则顺位换庄，北风过庄后进入下一圈。</p></section>
       <section><b>胡牌门槛</b><p>需三色全、不断幺九、至少一叉；已成合法听牌时可接上家的牌胡牌。9 蛋与中发白、杠牌有对应豁免。</p></section>
       <section><b>报听与宝牌</b><p>本回合打出一张牌后若成听牌，可立即报听；胡牌自动按最高牌型结算。报听当回合不能看宝，下次轮到自己时先看宝，再摸牌。宝牌正好能胡则直接对宝胡；可补蛋或开杠则先杠、重新换宝。</p></section>
       <section><b>番型与结算</b><p>支持平胡、夹胡、飘胡、飘顶、七对与豪华七对。手把一上听只允许飘顶；已有吃牌时，手牌剩四张不能再吃碰成手把一。碰后补杠按本地规则变站立。自摸、庄家、对宝、摸宝另计番。点炮者未看宝则包炮。蛋杠分独立于胡牌番数，按分值由其余三家分别支付。</p></section>
     </div>
-    <p class="rule-note">提示：报听后只能打出刚摸到的牌；新牌可补蛋或开杠，但听张和牌型须保持不变。没有幺九的听牌只能胡幺九，且不能报听、不能看宝。</p>
+    <p class="rule-note">提示：起手若能组成多种蛋，可逐组选择具体的三张牌。补蛋前其他家可抢蛋胡；无人胡才补牌。报听后只能打出刚摸到的牌；新牌可补蛋或开杠，但听张和牌型须保持不变。没有幺九的听牌只能胡幺九，且不能报听、不能看宝。</p>
   </dialog>
 
   <dialog id="resultDialog" class="modal result-modal">
     <h2 id="resultTitle">胡牌结算</h2>
     <p id="resultDetail"></p>
+    <section id="matchFinish" class="match-finish" aria-label="本场总分" hidden></section>
     <section id="resultSummary" class="result-summary" aria-label="牌型与分数">
       <strong id="resultShape" class="result-shape"></strong>
       <div id="patternList" class="pattern-list"></div>
@@ -92,7 +127,7 @@
     </section>
     <div id="baoPaoNotice" class="bao-pao-notice" hidden></div>
     <div id="winningHand" class="result-hands" aria-label="四家牌型"></div>
-    <button id="playAgainBtn" class="primary-btn large">再来一局</button>
+    <button id="playAgainBtn" class="primary-btn large">下一局</button>
   </dialog>
 
   <dialog id="scoreboardDialog" class="modal scoreboard-modal" aria-label="四人计分板">
@@ -103,5 +138,6 @@
   </dialog>
 
   <script src="game.js"></script>
+  <script src="online.js"></script>
 </body>
 </html>
