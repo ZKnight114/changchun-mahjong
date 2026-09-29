@@ -68,7 +68,10 @@
   <div id="loadingOverlay" class="loading-overlay" aria-live="polite">
     <div class="loader-tile">東</div><span>正在装牌…</span>
   </div>
-  <div id="errorBanner" class="error-banner" role="alert" hidden></div>
+  <div id="errorBanner" class="error-banner" role="alert" hidden>
+    <span id="errorBannerMessage"></span>
+    <button id="errorBannerClose" type="button" aria-label="关闭资源加载提示">×</button>
+  </div>
 
   <dialog id="modeDialog" class="modal mode-dialog" aria-labelledby="modeTitle">
     <span class="mode-mark">春</span>
@@ -139,5 +142,6 @@
 
   <script src="game.js"></script>
   <script src="online.js"></script>
+  <script src="offline.js"></script>
 </body>
 </html>

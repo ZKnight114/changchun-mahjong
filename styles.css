@@ -151,7 +151,7 @@ button.tile:hover { transform:translateY(-7px);filter:brightness(1.07); }
 .online-dialog #onlineStartBtn{width:100%}
 @media (orientation:landscape) and (max-height:500px){.online-dialog{padding:14px 18px}.online-dialog h2{font-size:20px;margin-bottom:8px}.online-field input,.online-entry input,.online-invite-link{padding:6px 8px}.online-entry{gap:6px;margin-top:8px}.online-seat{padding:5px}}
 .modal::backdrop { background:#001c18dd; }@supports (backdrop-filter:blur(5px)){.modal::backdrop{backdrop-filter:blur(5px)}}.modal h2{text-align:center;margin:0 0 24px;font-family:serif;font-size:28px;color:#704819}.modal-close{position:absolute;right:15px;top:10px;border:0;background:none;font-size:30px;color:#796f5c;cursor:pointer}.rule-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.rule-grid section{background:white;padding:14px;border-radius:10px;border:1px solid #e8dec6}.rule-grid b{color:#9a5c16}.rule-grid p{font-size:13px;line-height:1.7;margin:6px 0 0}.rule-note{font-size:12px;color:#7b7468;margin:18px 4px 0;line-height:1.6}.result-modal{text-align:center;max-width:540px;padding-top:48px}.result-icon{position:absolute;top:-40px;left:50%;transform:translateX(-50%);width:80px;height:80px;border-radius:50%;display:grid;place-content:center;background:linear-gradient(#f7d371,#cc8a24);color:#6c150f;font:800 48px serif;box-shadow:0 8px 25px #0006;border:5px solid #fff3c8}.result-shape{display:block;color:#9a5c16}.winning-hand{display:flex;justify-content:center;align-items:flex-end;gap:7px;flex-wrap:wrap;margin:20px 0 26px}.result-meld,.result-concealed{display:flex}.result-meld{padding-right:7px;border-right:2px solid #d8c69e}.large{padding:12px 28px;font-size:16px}
-.loading-overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:14px;background:#043f37;color:#fff4c8;transition:opacity .25s}.loading-overlay.hidden{opacity:0;pointer-events:none}.loader-tile{width:45px;height:60px;display:grid;place-content:center;border-radius:6px;background:#fff9e9;color:#216d5d;font:700 25px serif;box-shadow:inset 0 -5px #cfc6aa;animation:turnPulse .8s infinite}.error-banner{position:fixed;z-index:60;left:50%;top:80px;transform:translateX(-50%);max-width:90vw;padding:12px 18px;border-radius:8px;background:#9d2824;color:white;box-shadow:0 8px 30px #0008}
+.loading-overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:14px;background:#043f37;color:#fff4c8;transition:opacity .25s}.loading-overlay.hidden{opacity:0;pointer-events:none}.loader-tile{width:45px;height:60px;display:grid;place-content:center;border-radius:6px;background:#fff9e9;color:#216d5d;font:700 25px serif;box-shadow:inset 0 -5px #cfc6aa;animation:turnPulse .8s infinite}.error-banner{position:fixed;z-index:60;left:50%;top:80px;transform:translateX(-50%);display:flex;align-items:flex-start;gap:10px;max-width:90vw;padding:12px 12px 12px 18px;border-radius:8px;background:#9d2824;color:white;box-shadow:0 8px 30px #0008}.error-banner[hidden]{display:none}.error-banner #errorBannerMessage{min-width:0;overflow-wrap:anywhere}.error-banner #errorBannerClose{flex:none;width:26px;height:26px;display:grid;place-items:center;margin:-6px -6px -6px 0;padding:0;border:0;border-radius:5px;background:#ffffff24;color:white;font-size:21px;line-height:1;cursor:pointer}.error-banner #errorBannerClose:hover{background:#ffffff45}
 
 @media(max-width:1024px){
   .table{--board-side:clamp(108px,14vw,150px);--board-top:126px;--board-bottom:154px}.player-badge{font-size:10px;padding:4px 6px}.avatar{width:22px;height:22px}.tile{width:36px;height:49px}.tile.small{width:30px;height:40px}.discard-zone{--river-w:23px;--river-h:31px;grid-template-columns:minmax(138px,1fr) minmax(162px,210px) minmax(138px,1fr);grid-template-rows:minmax(96px,1fr) minmax(124px,1.3fr) minmax(96px,1fr)}
@@ -432,4 +432,17 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .wall-info{inset:15px}.wall-info strong{font-size:10px}
   .wind{width:9px;height:9px;font-size:7px}
   .wind-ring .north{top:2px}.wind-ring .south{bottom:2px}.wind-ring .west{left:2px}.wind-ring .east{right:2px}
+}
+
+/* Both physical orientations use the same seat-size hierarchy: the local
+   player's hand and open groups must remain larger than the top opponent's. */
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .seat-top .tile.back{width:21px;height:auto;aspect-ratio:3/4}
+  .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:16px;height:21px}
+}
+@media (orientation:landscape) and (max-height:340px),
+       (orientation:portrait) and (max-width:340px) and (pointer:coarse){
+  .seat-top .tile.back{width:18px}
+  .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:14px;height:19px}
 }

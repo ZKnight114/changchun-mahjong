@@ -47,6 +47,7 @@ function setTileTheme(theme) {
       img.src=tileImagePath(value==="back"?0:Number(value),value==="back");
     });
   }
+  window.MahjongCacheTheme?.(theme);
   return true;
 }
 const SOUND_FILES={draw:"draw.wav",discard:"discard.wav",peng:"peng.wav",gang:"gang.wav",win:"win.wav",drawgame:"drawgame.wav"};
@@ -1018,7 +1019,9 @@ function isJiaHu(hand, melds=[], winTile) {
 }
 
 function allTripletPartition(hand, melds=[]) {
-  if(melds.some(m=>m.type==="chi"||(m.type==="egg"&&m.eggType!=="big"))) return false;
+  // A laid egg is already a completed piao group, even when its three exposed
+  // tiles are different (such as a three-winds or joy egg). Chi still breaks piao.
+  if(melds.some(m=>m.type==="chi")) return false;
   const need=4-melds.length, counts=Array(34).fill(0); hand.forEach(tile=>counts[tile]++);
   if(hand.length!==need*3+2) return false;
   for(let pair=0;pair<34;pair++) if(counts[pair]>=2) {
@@ -1706,16 +1709,32 @@ function playSound(name){
   }catch{}
 }
 
-function showResourceError(message){const banner=$("errorBanner");if(!banner)return;banner.hidden=false;banner.textContent=message;}
+let resourceErrorDismissed=false;
+function showResourceError(message){
+  if(resourceErrorDismissed)return;
+  const banner=$("errorBanner"),label=$("errorBannerMessage");
+  if(!banner||!label)return;
+  label.textContent=message;banner.hidden=false;
+}
+let loadingOverlayHandled=false;
 function finishLoading(){
-  const overlay=$("loadingOverlay");if(!overlay||!document.images)return;
+  const overlay=$("loadingOverlay");if(loadingOverlayHandled||!overlay||!document.images)return;
+  loadingOverlayHandled=true;
+  const hide=()=>{
+    if(overlay.classList.contains("hidden"))return;
+    overlay.classList.add("hidden");setTimeout(()=>overlay.remove(),300);
+  };
+  // An image request can hang indefinitely in a mobile webview. Let the table
+  // remain playable while slow images continue loading in the background.
+  const timeout=setTimeout(hide,6000);
   // This is intentionally a startup snapshot: startGame has already rendered all
   // tile images needed for the board, and later turns reuse those same assets.
   const images=[...document.images];
   Promise.all(images.map(img=>img.complete?Promise.resolve({img,ok:img.naturalWidth>0}):new Promise(resolve=>{img.addEventListener("load",()=>resolve({img,ok:true}),{once:true});img.addEventListener("error",()=>resolve({img,ok:false}),{once:true});}))).then(results=>{
+    clearTimeout(timeout);
     const missing=results.filter(result=>!result.ok).map(result=>result.img.getAttribute("src")||"未知资源");
     if(missing.length)showResourceError(`部分麻将牌资源加载失败：${missing.slice(0,3).join("、")}${missing.length>3?` 等 ${missing.length} 个`:""}`);
-    overlay.classList.add("hidden");setTimeout(()=>overlay.remove(),300);
+    hide();
   });
 }
 
@@ -1733,10 +1752,11 @@ $("scoreboardDialog").querySelector(".modal-close").onclick=()=>$("scoreboardDia
 $("rulesBtn").onclick=()=>$("rulesDialog").showModal();
 $("rulesDialog").querySelector(".modal-close").onclick=()=>$("rulesDialog").close();
 $("soundBtn").onclick=()=>{state.sound=!state.sound;$("soundBtn").textContent=`声音：${state.sound?"开":"关"}`;if(state.sound)beep(440,.05);};
+$("errorBannerClose").onclick=()=>{resourceErrorDismissed=true;$("errorBanner").hidden=true;};
 $("volumeSlider").oninput=e=>{state.volume=+e.target.value/100;if(state.volume>0)beep(440,.035);};
 document.addEventListener("pointerdown",unlockAudio,{once:true});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&state.pending){const cb=state.pending.onPass;state.pending=null;setActions();cb();}});
-window.addEventListener?.("error",event=>{if(event.target?.tagName==="IMG")showResourceError("麻将牌图片加载失败，请检查 assets/tiles 资源目录。");});
+window.addEventListener?.("error",event=>{if(event.target?.tagName==="IMG")showResourceError("麻将牌图片加载失败，请检查网络后刷新重试。");},true);
 
 try{$("modeDialog").showModal();}catch(error){showResourceError(`模式选择打开失败：${error.message}`);throw error;}
 
