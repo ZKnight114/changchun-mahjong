@@ -372,7 +372,7 @@ function renderPlayer(p) {
     });
     slots.eggs.innerHTML=displayedEggs.length
       ? `<div class="egg-row" aria-label="${NAMES[p]}的蛋杠区">${displayedEggs.map(egg=>`<div class="egg-group ${egg.type}" data-label="${eggNames[egg.type]||"蛋"}">${egg.standardGang
-        ?egg.tiles.map(t=>tileHTML(t,{small:p!==0})).join("")
+        ?egg.tiles.map(t=>tileHTML(t,{small:p!==0,back:p!==0&&!!egg.concealed})).join("")
         :liveEggTilesHTML(egg.tiles,p!==0)}</div>`).join("")}</div>`
       : "";
     slots.eggSignature=eggSignature;

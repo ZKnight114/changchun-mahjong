@@ -401,7 +401,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .bao-panel{top:2px;left:2px;min-width:70px;min-height:38px;padding:2px 4px;font-size:9px}
   .bao-panel .tile{transform:scale(.55);margin-right:-14px}.bao-placeholder{width:20px;height:27px}
   .discard-zone{--river-w:19px;--river-h:25px;inset:6px;grid-template-rows:minmax(32px,.7fr) minmax(75px,1.5fr) minmax(32px,.7fr)}
-  .river-south{align-content:start;transform:translateY(clamp(-10px,47px - 14dvh,-2px))}
+  .river-south{align-content:start}
 }
 @media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .game-shell{width:100dvh;height:100dvw}
@@ -410,7 +410,6 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .seat-left,.seat-right{--side-tile-long:clamp(24px,calc(7.4dvw - 2px),30px);--side-tile-short:clamp(12px,calc(4.2dvw - 2px),17px);--side-open-long:clamp(22px,6.2dvw,27px);--side-open-short:clamp(13px,3.6dvw,16px);top:clamp(35px,10.5dvw,44px);bottom:clamp(47px,14dvw,60px)}
   .seat-bottom .tile{width:clamp(24px,calc(8dvw - 3px),31px);height:clamp(33px,calc(11dvw - 5px),42px)}
   .seat-bottom .seat-meld-slot .tile,.seat-bottom .seat-egg-slot .tile{width:clamp(17px,calc(6dvw - 2px),21px);height:clamp(24px,calc(8dvw - 4px),28px)}
-  .river-south{transform:translateY(clamp(-10px,47px - 14dvw,-2px))}
 }
 /* Top and bottom rivers may extend one more row into the center. Cards paint
    above the wind board when they meet, while each river remains scrollable. */
@@ -421,12 +420,6 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 @media (orientation:landscape) and (max-height:600px),
        (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .river-east,.river-west{grid-template-columns:repeat(7,var(--river-w))}
-  /* A single row can move toward the desk center by about one tile. Two or
-     more rows already extend inward and stay put to protect the wind board. */
-  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvh,-2px) - 62px))}
-}
-@media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
-  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvw,-2px) - 62px))}
 }
 @media (orientation:landscape) and (max-height:380px),
        (orientation:portrait) and (max-width:380px) and (pointer:coarse){
@@ -555,19 +548,13 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 .bao-panel .bao-placeholder{width:31px;height:41px}
 }
 
+/* Keep the first south-river row fixed as new rows arrive. Reserve a separate
+   line for waits between actions and hand, so neither can cover the other. */
 @media (orientation:landscape) and (max-height:600px),
        (orientation:portrait) and (max-width:760px) and (pointer:coarse){
-  .river-south[data-rows="1"]{transform:translateY(-40px);align-self:center}
-}
-@media (orientation:landscape) and (max-height:500px),
-       (orientation:portrait) and (max-width:500px) and (pointer:coarse){
-  .river-south[data-rows="1"]{transform:translateY(-60px)}
-}
-
-/* Mobile table: the listening summary belongs to the hand dock, not the river. */
-@media (orientation:landscape) and (max-height:600px),
-       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
-  .seat-bottom .seat-waits-slot{bottom:calc(100% - 2px);pointer-events:none}
+  .river-south{height:calc(2 * var(--river-h) + var(--river-gap) + 8px);max-height:calc(2 * var(--river-h) + var(--river-gap) + 8px);align-self:end;align-content:start;transform:none}
+  .seat-bottom .seat-waits-slot{position:static;width:calc(100% - 78px);height:auto;margin-left:78px;transform:none;flex:none;pointer-events:none}
+  .seat-bottom .seat-waits-slot.empty{display:none}
   .seat-bottom .seat-waits-slot .own-waits{padding:1px 5px;margin:0;font-size:9px;line-height:1.2;pointer-events:none}
   .seat-bottom .seat-waits-slot .own-waits span:first-child{display:none}
   .seat-bottom .seat-waits-slot .own-waits span:not(:first-child){padding:0 3px}
