@@ -84,6 +84,7 @@
     <button id="onlineCloseBtn" class="modal-close" type="button" aria-label="退出组局">×</button>
     <h2 id="onlineTitle">四人组局</h2>
     <div id="onlineSetup">
+      <button id="restoreRoomBtn" class="primary-btn" type="button" hidden>恢复原房间</button>
       <label class="online-field">你的昵称<input id="onlineName" maxlength="40" autocomplete="nickname" placeholder="输入 2–20 个字符"><small>2–20 个字符，不能与同房间玩家重名</small></label>
       <div id="onlineEntry" class="online-entry">
         <button id="createRoomBtn" class="primary-btn" type="button">创建房间</button>
@@ -140,6 +141,7 @@
     <div id="scoreboardRows" class="scoreboard-rows"></div>
   </dialog>
 
+  <script src="rules.js"></script>
   <script src="game.js"></script>
   <script src="online.js"></script>
   <script src="offline.js"></script>

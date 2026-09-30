@@ -9,7 +9,39 @@
   let started=false,lastResult=null,guestRoster=[null,null,null,null];
   let reconnectTimer=null,reconnectWarningTimer=null,peerScript=null,guestJoined=false;
   let hostPresenceTimer=null,guestHeartbeatTimer=null;
+  let joinTimeout=null,lastHostSeen=0,hostRestoreTimer=null,persistQueued=false;
+  const HOST_SAVE_KEY="mahjong-host-room-v1";
   const hostSlots=[null,null,null,null];
+
+  function readHostSave() {
+    try {
+      const saved=JSON.parse(localStorage.getItem(HOST_SAVE_KEY)||"null");
+      return saved?.schema===1&&/^ccmj-\d{6}$/.test(saved.roomId)&&Array.isArray(saved.slots)&&saved.slots.length===4
+        &&saved.slots.every((slot,index)=>slot&&validName(slot.name)&&(index===0||/^[a-f0-9]{32}$/.test(slot.token)))
+        &&game.validSave(saved.game)?saved:null;
+    }catch{return null;}
+  }
+  function persistHostNow() {
+    if(role!=="host"||!started||!roomId)return;
+    const saved=game.exportGame();if(!saved)return;
+    try {
+      localStorage.setItem(HOST_SAVE_KEY,JSON.stringify({schema:1,roomId,slots:hostSlots.map(slot=>slot?{name:slot.name,token:slot.token}:null),game:saved}));
+    }catch{badge("牌局保存失败，请保持房主页面打开",true);}
+  }
+  function queueHostSave() {
+    if(persistQueued)return;
+    persistQueued=true;
+    Promise.resolve().then(()=>{persistQueued=false;persistHostNow();});
+  }
+  function syncHostPause() {
+    if(role!=="host"||!started)return;
+    const paused=connectedCount()<4;
+    game.setPaused(paused);
+    $("playAgainBtn").disabled=paused;
+    if(paused&&!$("onlineDialog").open)$("onlineDialog").showModal();
+    else if(!paused&&$("onlineDialog").open)$("onlineDialog").close();
+    queueHostSave();
+  }
 
   function safeName(value) {
     return String(value||"").normalize("NFKC")
@@ -89,20 +121,24 @@
   function startHostPresence() {
     if(hostPresenceTimer)clearInterval(hostPresenceTimer);
     hostPresenceTimer=setInterval(()=>{
-      if(role!=="host"||document.hidden)return;
+      if(role!=="host")return;
       for(let seat=1;seat<4;seat++) {
         const slot=hostSlots[seat];
-        if(slot?.connected&&Date.now()-slot.lastSeen>9000) {
+        if(slot?.connected&&Date.now()-slot.lastSeen>30000) {
           releaseHostSeat(seat,slot.conn);
           slot.conn?.close();
         }
+        else if(slot?.connected)send(slot.conn,{type:"pong"});
       }
     },2000);
   }
   function startGuestHeartbeat() {
     if(guestHeartbeatTimer)return;
     guestHeartbeatTimer=setInterval(()=>{
-      if(role==="guest")send(connection,{type:"ping"});
+      if(role==="guest") {
+        send(connection,{type:"ping"});
+        if(guestJoined&&Date.now()-lastHostSeen>30000)connection?.close();
+      }
     },2000);
   }
   function renderLobby(roster,amHost) {
@@ -116,7 +152,7 @@
       const name=document.createElement("span");name.textContent=slot?`${slot.name}${slot.connected?"":"（离线）"}`:"等待加入";
       item.append(label,name);return item;
     }));
-    $("onlineStartBtn").hidden=!amHost;
+    $("onlineStartBtn").hidden=!amHost||started;
     $("onlineStartBtn").disabled=!amHost||roster.some(slot=>!slot?.connected);
     $("onlineStartBtn").textContent=$("onlineStartBtn").disabled?"四人到齐后开始":"开始四人对局";
     $("copyInviteBtn").hidden=!amHost;
@@ -128,6 +164,7 @@
     renderLobby(roster,true);
     for(let seat=1;seat<4;seat++) send(hostSlots[seat]?.conn,{type:"roster",roster});
     if(started) {
+      syncHostPause();
       badge(`组局 ${connectedCount()}/4`,connectedCount()<4);
       setLobbyStatus(connectedCount()===4?"四人已重连，可以继续对局":"有玩家离线，等待原玩家重连");
       game.setNames(hostNames());
@@ -135,6 +172,7 @@
   }
   function publishHostState() {
     if(role!=="host"||!started) return;
+    queueHostSave();
     if(game.info().phase!=="gameover") lastResult=null;
     for(let seat=1;seat<4;seat++) {
       const slot=hostSlots[seat];
@@ -150,8 +188,8 @@
     }
   };
   const guestController={
-    sendDiscard(index){send(connection,{type:"input",kind:"discard",index});},
-    sendAction(version,index){send(connection,{type:"input",kind:"action",version,index});}
+    sendDiscard(index){const input=game.guestInput("discard",index);if(input)send(connection,{type:"input",...input});},
+    sendAction(version,index){const input=game.guestInput("action",index,version);if(input)send(connection,{type:"input",...input});}
   };
 
   function handleHostConnection(conn) {
@@ -159,6 +197,9 @@
     conn.on("data",message=>{
       if(!message||typeof message!=="object") return;
       if(message.type==="join"&&seat===null) {
+        if(message.protocol!==game.protocolVersion||message.rulesVersion!==game.rulesVersion){
+          rejectJoin(conn,"游戏版本不一致，请所有玩家更新到同一版本后再组局");return;
+        }
         const token=String(message.token||"").slice(0,80);
         if(!/^[a-f0-9]{32}$/.test(token)) {rejectJoin(conn,"无效的加入凭证");return;}
         const joiningName=safeName(message.name);
@@ -182,14 +223,22 @@
       if(message.type==="leave"&&seat!==null&&hostSlots[seat]?.conn===conn) {
         releaseHostSeat(seat,conn);conn.close();return;
       }
-      if(message.type==="input"&&started&&seat!==null&&hostSlots[seat]?.conn===conn)
-        game.receiveInput(seat,message);
+      if(message.type==="ping"&&seat!==null)send(conn,{type:"pong"});
+      if(message.type==="input"&&started&&seat!==null&&hostSlots[seat]?.conn===conn&&hostSlots[seat].connected)
+        {
+          if(!game.receiveInput(seat,message))send(conn,{type:"snapshot",snapshot:game.snapshotFor(seat)});
+          queueHostSave();
+        }
     });
     conn.on("close",()=>{if(seat!==null)releaseHostSeat(seat,conn);});
-    conn.on("error",()=>{if(seat!==null&&hostSlots[seat]?.conn===conn)badge(`组局 ${connectedCount()-1}/4`,true);});
+    conn.on("error",()=>{
+      if(seat!==null&&hostSlots[seat]?.conn===conn){releaseHostSeat(seat,conn);conn.close();}
+    });
   }
 
   function resetSession() {
+    if(joinTimeout){clearTimeout(joinTimeout);joinTimeout=null;}
+    if(hostRestoreTimer){clearTimeout(hostRestoreTimer);hostRestoreTimer=null;}
     if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
     if(reconnectWarningTimer){clearTimeout(reconnectWarningTimer);reconnectWarningTimer=null;}
     if(hostPresenceTimer){clearInterval(hostPresenceTimer);hostPresenceTimer=null;}
@@ -204,6 +253,7 @@
     $("newGameBtn").disabled=false;$("playAgainBtn").disabled=false;
   }
   function finishLeaveRoom() {
+    if(role==="host")try{localStorage.removeItem(HOST_SAVE_KEY);}catch{}
     resetSession();
     if($("onlineDialog").open) $("onlineDialog").close();
     if(!$("modeDialog").open) $("modeDialog").showModal();
@@ -227,17 +277,24 @@
       openHostPeer(name);
     }).catch(error=>{setSetupStatus(error.message);$("createRoomBtn").disabled=false;});
   }
-  function openHostPeer(name,attempt=0) {
+  function openHostPeer(name,attempt=0,restoring=null) {
     if(role!=="host")return;
-    const hostPeer=new Peer(randomRoomId());peer=hostPeer;
+    const hostPeer=new Peer(restoring?.roomId||randomRoomId());peer=hostPeer;
     hostPeer.on("open",id=>{
       if(role!=="host"||peer!==hostPeer)return;
       if(roomId===id){badge(`组局 ${connectedCount()}/4`);return;}
-      roomId=id;hostSlots[0]={name,connected:true,token:null,conn:null};
+      roomId=id;
+      if(restoring) {
+        restoring.slots.forEach((slot,index)=>hostSlots[index]={...slot,connected:index===0,conn:null,lastSeen:Date.now()});
+        started=true;lastResult=restoring.game.result;
+      } else hostSlots[0]={name,connected:true,token:null,conn:null};
       startHostPresence();
-      game.setController("host",hostController);game.setNames(hostNames());
+      game.setController("host",hostController);
+      if(restoring&&!game.importGame(restoring.game)){setSetupStatus("牌局记录无法恢复");return;}
+      game.setNames(hostNames());
       renderLobby(hostRoster(),true);
-      setLobbyStatus("房间已创建，等待三位朋友加入");
+      if(restoring){$("newGameBtn").disabled=true;syncHostPause();setLobbyStatus("原牌局已恢复，等待三位原玩家重连");}
+      else setLobbyStatus("房间已创建，等待三位朋友加入");
       if(location.protocol==="file:") setLobbyStatus("本地文件链接不能发给手机；发布到网页后再分享邀请链接");
     });
     hostPeer.on("connection",conn=>{if(role==="host"&&peer===hostPeer)handleHostConnection(conn);else conn.close();});
@@ -245,7 +302,9 @@
     hostPeer.on("error",error=>{
       if(role!=="host"||peer!==hostPeer)return;
       if(error.type==="unavailable-id"&&attempt<8) {
-        peer=null;hostPeer.destroy();openHostPeer(name,attempt+1);return;
+        peer=null;hostPeer.destroy();
+        if(restoring)hostRestoreTimer=setTimeout(()=>{hostRestoreTimer=null;openHostPeer(name,attempt+1,restoring);},2000);
+        else openHostPeer(name,attempt+1);return;
       }
       setSetupStatus(`连接失败：${error.message||error.type}`);badge("信令连接失败",true);$("createRoomBtn").disabled=false;
     });
@@ -257,6 +316,7 @@
   }
   function noteGuestDisconnect() {
     guestJoined=false;
+    game.setGuestPaused?.();
     badge("与房主断开 · 重连中",true);
     if(started&&!$("onlineDialog").open) $("onlineDialog").showModal();
     const message="正在自动重连；也可在原浏览器重新打开网页，输入同一房间码回到原座位";
@@ -264,7 +324,7 @@
     if(!reconnectWarningTimer) reconnectWarningTimer=setTimeout(()=>{
       reconnectWarningTimer=null;
       if(role!=="guest"||guestJoined)return;
-      const warning="房主仍未恢复。若房主页面已关闭或刷新，原牌局无法继续，需要重新建房。";
+      const warning="仍在等待房主恢复。房主可在原浏览器打开游戏，点击恢复房间，继续原牌局。";
       setSetupStatus(warning);setLobbyStatus(warning);
     },15000);
   }
@@ -272,10 +332,19 @@
     if(role!=="guest"||!peer||connection?.open)return;
     if(peer.disconnected){try{peer.reconnect();}catch{}scheduleGuestReconnect();return;}
     const conn=peer.connect(roomId,{reliable:true});connection=conn;
-    conn.on("open",()=>send(conn,{type:"join",name:ownPlayerName,token:guestToken}));
+    if(joinTimeout)clearTimeout(joinTimeout);
+    joinTimeout=setTimeout(()=>{
+      joinTimeout=null;
+      if(connection!==conn||guestJoined)return;
+      conn.close();noteGuestDisconnect();scheduleGuestReconnect();
+    },12000);
+    conn.on("open",()=>send(conn,{type:"join",name:ownPlayerName,token:guestToken,
+      protocol:game.protocolVersion,rulesVersion:game.rulesVersion}));
     conn.on("data",message=>{
       if(connection!==conn||!message||typeof message!=="object")return;
+      lastHostSeen=Date.now();
       if(message.type==="welcome") {
+        if(joinTimeout){clearTimeout(joinTimeout);joinTimeout=null;}
         guestJoined=true;
         if(reconnectWarningTimer){clearTimeout(reconnectWarningTimer);reconnectWarningTimer=null;}
         guestSeat=message.seat;started=!!message.started;guestRoster=message.roster;
@@ -289,10 +358,11 @@
         badge(`组局 ${guestRoster.filter(slot=>slot?.connected).length}/4`);
       } else if(message.type==="roster") {
         guestRoster=message.roster;renderLobby(guestRoster,false);
-        setLobbyStatus("等待房主开始对局");
+        setLobbyStatus(started?"正在同步重连状态":"等待房主开始对局");
       } else if(message.type==="snapshot") {
         started=true;game.applySnapshot(message.snapshot);
-        if($("onlineDialog").open) $("onlineDialog").close();
+        if(message.snapshot?.paused){if(!$("onlineDialog").open)$("onlineDialog").showModal();setLobbyStatus("有玩家离线，牌局暂停，等待原玩家重连");}
+        else if($("onlineDialog").open) $("onlineDialog").close();
         $("newGameBtn").disabled=true;
         badge(`组局 ${guestRoster.filter(slot=>slot?.connected).length}/4`,guestRoster.some(slot=>!slot?.connected));
       } else if(message.type==="result") {
@@ -307,7 +377,10 @@
       noteGuestDisconnect();
       scheduleGuestReconnect();
     });
-    conn.on("error",()=>{if(connection===conn){noteGuestDisconnect();scheduleGuestReconnect();}});
+    conn.on("error",()=>{
+      if(connection!==conn||role!=="guest")return;
+      conn.close();noteGuestDisconnect();scheduleGuestReconnect();
+    });
   }
   function startJoining(inviteCode=null) {
     const name=ownName();if(!name)return;
@@ -337,10 +410,18 @@
     if(invite) $("inviteRoomCode").textContent=invite.slice(5);
     try{$("onlineName").value=localStorage.getItem("mahjongOnlineName")||"";}catch{}
     setSetupStatus("");
+    const saved=readHostSave();$("restoreRoomBtn").hidden=!saved;
+    if(saved)$("restoreRoomBtn").textContent=`恢复房间 ${saved.roomId.slice(5)}`;
   };
   $("createRoomBtn").onclick=startHosting;
   $("joinRoomBtn").onclick=()=>startJoining();
   $("inviteJoinBtn").onclick=()=>startJoining(roomFromInvite());
+  $("restoreRoomBtn").onclick=()=>{
+    const saved=readHostSave();if(!saved){setSetupStatus("没有可恢复的牌局");return;}
+    resetSession();role="host";ownPlayerName=saved.slots[0].name;
+    setSetupStatus("正在恢复原房间…");
+    loadPeerJS().then(()=>{if(role==="host")openHostPeer(ownPlayerName,0,saved);}).catch(error=>setSetupStatus(error.message));
+  };
   $("onlineCloseBtn").onclick=leaveRoom;
   $("onlineDialog").addEventListener("cancel",event=>{event.preventDefault();leaveRoom();});
   $("onlineStartBtn").onclick=()=>{
@@ -365,6 +446,7 @@
     }
   };
   window.addEventListener?.("pagehide",()=>{
+    persistHostNow();
     try{
       if(role==="guest")send(connection,{type:"leave"});
       connection?.close();
@@ -373,6 +455,7 @@
     }catch{}
   });
   document.addEventListener?.("visibilitychange",()=>{
+    if(role==="host")persistHostNow();
     if(role==="host"&&!document.hidden)
       for(const slot of hostSlots)if(slot?.connected)slot.lastSeen=Date.now();
   });
