@@ -11,25 +11,10 @@
 </head>
 <body>
   <main class="game-shell">
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark">春</span><div><strong>长春麻将</strong><small>四人麻将</small></div><span id="matchCircleBadge" class="match-circle-badge" aria-label="当前圈数">第1圈</span><span id="onlineConnectionBadge" class="online-connection-badge" hidden></span></div>
-      <div class="header-actions">
-        <label class="tile-theme-control" for="tileThemeSelect">牌面
-          <select id="tileThemeSelect" aria-label="切换麻将牌面">
-            <option value="a">A · 经典</option>
-            <option value="b">B · 黑金</option>
-            <option value="c" selected>C · 扁平</option>
-          </select>
-        </label>
-        <button id="scoreboardBtn" class="quiet-btn">计分板</button>
-        <button id="rulesBtn" class="quiet-btn">规则</button>
-        <button id="soundBtn" class="quiet-btn" aria-label="切换声音">声音：开</button>
-        <label class="volume-control">音量<input id="volumeSlider" type="range" min="0" max="100" value="55" aria-label="音效音量"></label>
-        <button id="newGameBtn" class="primary-btn">新一场</button>
-      </div>
-    </header>
-
+    <div class="game-stage">
     <section class="table" aria-label="麻将桌">
+      <div class="table-meta"><span id="matchCircleBadge" class="match-circle-badge" aria-label="当前圈数">第1圈</span><span id="onlineConnectionBadge" class="online-connection-badge" hidden></span></div>
+      <button id="menuToggle" class="menu-toggle" type="button" aria-controls="gameMenu" aria-expanded="false" aria-label="展开游戏菜单"><span aria-hidden="true">☰</span><span id="menuToggleLabel">菜单</span></button>
       <div id="baoPanel" class="bao-panel" aria-label="宝牌区域"><span>宝牌</span><span id="baoTile"></span></div>
       <div id="actionCue0" class="action-cue cue-south" aria-hidden="true"></div>
       <div id="actionCue1" class="action-cue cue-east" aria-hidden="true"></div>
@@ -63,6 +48,19 @@
         <section id="player0" class="seat seat-bottom"></section>
       </section>
     </section>
+    <aside id="gameMenu" class="game-menu" aria-label="游戏菜单" hidden>
+      <label class="menu-theme" for="tileThemeSelect"><span>牌面</span><select id="tileThemeSelect" aria-label="切换麻将牌面">
+        <option value="a">A · 经典</option>
+        <option value="b">B · 黑金</option>
+        <option value="c" selected>C · 扁平</option>
+      </select></label>
+      <button id="scoreboardBtn" class="menu-item" type="button" aria-label="计分板">计分</button>
+      <button id="rulesBtn" class="menu-item" type="button">规则</button>
+      <button id="soundBtn" class="menu-item menu-sound" type="button" aria-label="关闭声音"><span>声音</span><small id="soundState">开</small></button>
+      <label class="menu-volume" for="volumeSlider"><span>音量</span><input id="volumeSlider" type="range" min="0" max="100" value="55" aria-label="音效音量"></label>
+      <button id="newGameBtn" class="menu-item menu-new" type="button" aria-label="开始新一场">新场</button>
+    </aside>
+    </div>
   </main>
 
   <div id="loadingOverlay" class="loading-overlay" aria-live="polite">
@@ -77,7 +75,8 @@
     <span class="mode-mark">春</span>
     <h2 id="modeTitle">长春麻将</h2>
     <p>请选择对局方式</p>
-    <button id="modeAiBtn" class="mode-choice mode-choice-active" type="button"><strong>人机对局</strong><small>与三位电脑玩家开始四圈对局</small></button>
+    <button id="modeAiBtn" class="mode-choice mode-choice-active" type="button"><strong>简单人机</strong><small>保留当前机器人的打法</small></button>
+    <button id="modeHardBtn" class="mode-choice mode-choice-hard" type="button"><strong>困难人机</strong><small>参考余牌、胡分与蛋杠收益决策</small></button>
     <button id="modeGroupBtn" class="mode-choice mode-choice-online" type="button"><strong>组局对局</strong><small>创建房间，邀请三位朋友</small></button>
   </dialog>
 

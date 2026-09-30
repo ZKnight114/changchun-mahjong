@@ -1,6 +1,6 @@
-/* Same-origin cache for the GitHub Pages/web build. Bump this name when local
-   assets change so a later visit can replace old tiles and application code. */
-const CACHE_NAME="changchun-mahjong-20260929-1";
+/* Same-origin cache for the GitHub Pages/web build. Shell files refresh during
+   install; keep the asset cache when only application code and styles change. */
+const CACHE_NAME="changchun-mahjong-20260930-1";
 const CACHE_PREFIX="changchun-mahjong-";
 const ROOT=new URL(self.registration.scope);
 const SHELL=["./","./index.html","./styles.css","./game.js","./online.js","./offline.js","./manifest.webmanifest","./assets/vendor/peerjs.min.js"];

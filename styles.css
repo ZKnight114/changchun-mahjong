@@ -52,6 +52,8 @@ button { font: inherit; }
 .seat-left .seat-badge-slot,.seat-right .seat-badge-slot{grid-area:badge;align-self:start;z-index:1}.seat-left .seat-meld-slot{grid-area:meld;min-width:0}.seat-right .seat-meld-slot{grid-area:meld;min-width:0}.seat-left .seat-hand-slot,.seat-right .seat-hand-slot{grid-area:hand;align-self:center}
 .bottom-dock { position:absolute;left:0;right:0;bottom:6px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;min-height:0;z-index:7; }
 .seat-bottom { width:min(920px,96vw);padding-bottom:6px;flex-direction:column;justify-content:flex-end; }
+.seat-bottom .seat-waits-slot{display:flex;align-items:center;justify-content:center;width:min(620px,95%);height:27px;flex:none;pointer-events:none}
+.seat-bottom .seat-waits-slot .own-waits{max-width:100%;margin:0;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;pointer-events:auto}
 .seat-bottom .seat-badge-slot{align-self:center}.seat-bottom-cards{width:100%;display:flex;align-items:flex-end;justify-content:center;gap:12px;min-width:0}.seat-bottom-cards .seat-hand-slot{order:1;min-width:0}.seat-bottom-cards .seat-meld-slot{order:2;flex:none}.seat-bottom-cards .seat-meld-slot.empty{display:none}
 .seat-top .seat-badge-slot{order:1}.seat-top .seat-hand-slot{order:2}.seat-top .seat-meld-slot{order:3}.seat-top .seat-meld-slot.empty{display:none}.seat-top .count-bubble{display:none}
 .player-badge { display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:20px;background:#032b26cc;border:1px solid #ffffff18;font-size:12px;white-space:nowrap; }
@@ -113,6 +115,11 @@ button.tile:hover { transform:translateY(-7px);filter:brightness(1.07); }
 .action-options{display:flex;gap:8px;min-width:0;max-width:100%;overflow-x:auto;padding:2px;}
 .action-options .action-btn{flex:0 0 auto;white-space:nowrap}
 .action-btn { min-width:55px;color:#362000;background:linear-gradient(#ffe49a,#dca83a);font-weight:800;box-shadow:0 3px 0 #815715; }
+.action-btn.egg{display:inline-flex;align-items:center;gap:4px}
+.action-egg-tiles{display:inline-flex;align-items:center;gap:2px}
+.action-egg-tiles img{display:block;width:18px;height:24px;border-radius:2px;object-fit:fill;box-shadow:0 1px 2px #0005}
+.live-egg-tile{position:relative;display:inline-flex;flex:none}
+.live-egg-count{position:absolute;right:-2px;top:-3px;z-index:4;display:grid;place-items:center;min-width:16px;height:16px;padding:0 2px;border:1px solid #fff7e2;border-radius:99px;background:#b94032;color:#fff;font:800 11px/1 sans-serif;box-shadow:0 1px 3px #0009;pointer-events:none}
 .action-btn.hu { color:white;background:linear-gradient(#e85448,#a8211e);box-shadow:0 3px 0 #65100e; }.action-btn.pass{color:white;background:#123d37;box-shadow:0 3px 0 #001e1a;}
 
 .modal { width:min(620px,90vw);color:#23352f;background:#fbf6e9;border:0;border-radius:18px;padding:30px;box-shadow:0 30px 100px #000b;overflow:visible; }
@@ -127,6 +134,8 @@ button.tile:hover { transform:translateY(-7px);filter:brightness(1.07); }
 .mode-choice{display:flex;flex-direction:column;gap:3px;align-items:center;padding:14px 18px;border:1px solid #cabf9d;border-radius:11px;background:#f7f5ec;color:#5b625b;font:inherit;cursor:pointer}
 .mode-choice strong{font-size:19px}.mode-choice small{font-size:12px}.mode-choice-active{border-color:#d5a644;background:linear-gradient(#ffe4a0,#f2c45a);color:#533608;box-shadow:0 4px 0 #a47122}
 .mode-choice-active:hover,.mode-choice-active:focus-visible{filter:brightness(1.05);outline:2px solid #9a6b1c;outline-offset:2px}
+.mode-choice-hard{border-color:#5d9b83;background:linear-gradient(#ddf2e7,#a7d8c0);color:#174b3b;box-shadow:0 4px 0 #518a73}
+.mode-choice-hard:hover,.mode-choice-hard:focus-visible{filter:brightness(1.05);outline:2px solid #367b61;outline-offset:2px}
 .mode-choice:disabled{opacity:.62;cursor:not-allowed;filter:grayscale(.35)}
 .mode-choice-online{background:#eaf5ef;border-color:#9bbfae;color:#175449}
 .mode-choice-online:hover,.mode-choice-online:focus-visible{outline:2px solid #4c9478;outline-offset:2px;background:#ddf0e5}
@@ -211,7 +220,7 @@ button.tile:hover { transform:translateY(-7px);filter:brightness(1.07); }
 @keyframes drawGlow{from{box-shadow:0 0 0 2px #31c6d1,0 4px 5px #002c39}to{box-shadow:0 0 0 4px #9cfaff,0 4px 11px #168eac}}
 .discard-river .tile.latest{box-shadow:0 0 0 2px #ff9152,0 4px 8px #0009}
 .discard-river .tile.latest::before{color:#421c08;background:#ffaf73}
-.tile.related::after{border-color:#b58aff;box-shadow:0 0 10px #a46af0}
+.tile.related:not(.selected)::after{inset:0;border:3px solid #e638ff;border-radius:inherit;background:#bb35ed38;box-shadow:inset 0 0 0 1px #fff, inset 0 0 9px #a300d8}
 .discard-river .tile.latest.related{box-shadow:0 0 0 2px #ff9152,0 4px 8px #0009}
 
 /* 侧家用横向牌框承接旋转后的牌面，避免竖窄框与图片、蛋区边线错位。 */
@@ -336,7 +345,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
     --board-top:clamp(62px,17dvh,72px);
     --board-bottom:clamp(62px,19dvh,80px);
     flex:none;
-    width:min(100vw,calc(190dvh - 80px));
+    width:min(100%,100vw,190dvh);
     height:auto;
     min-height:0;
     aspect-ratio:19 / 10;
@@ -368,6 +377,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .bottom-dock{bottom:3px;gap:2px}
   .seat-bottom{position:relative;display:flex;flex-direction:column;width:calc(100% - 8px);padding:0;gap:0}
   .seat-bottom .seat-badge-slot{position:absolute;left:2px;bottom:8px;z-index:2;align-self:auto}
+  .seat-bottom .seat-waits-slot{position:absolute;left:50%;bottom:calc(100% + 31px);width:min(500px,95%);height:auto;transform:translateX(-50%);z-index:5}
   .seat-bottom-cards{width:calc(100% - 78px);margin-left:78px;padding:8px 2px 2px;gap:5px;justify-content:safe center;overflow-x:auto}
   .seat-bottom .tile{width:clamp(24px,calc(8dvh - 3px),31px);height:clamp(33px,calc(11dvh - 5px),42px)}
   .seat-bottom .tile.drawn{margin-left:9px}
@@ -384,7 +394,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 }
 @media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .game-shell{width:100dvh;height:100dvw}
-  .table{--board-top:clamp(62px,17dvw,72px);--board-bottom:clamp(62px,19dvw,80px);width:min(100dvh,calc(190dvw - 80px))}
+  .table{--board-top:clamp(62px,17dvw,72px);--board-bottom:clamp(62px,19dvw,80px);width:min(100%,100dvh,190dvw)}
   .seat-top .tile.back{width:clamp(19px,calc(7dvw - 2px),27px)}
   .seat-left,.seat-right{--side-tile-long:clamp(24px,calc(7.4dvw - 2px),30px);--side-tile-short:clamp(12px,calc(4.2dvw - 2px),17px);--side-open-long:clamp(18px,calc(5.5dvw - 2px),23px);--side-open-short:clamp(10px,calc(3.6dvw - 2px),13px);top:clamp(35px,10.5dvw,44px);bottom:clamp(47px,14dvw,60px)}
   .seat-bottom .tile{width:clamp(24px,calc(8dvw - 3px),31px);height:clamp(33px,calc(11dvw - 5px),42px)}
@@ -397,6 +407,16 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 .river-north,.river-south{grid-template-columns:repeat(10,var(--river-w));height:max-content;max-height:calc(var(--river-h) + var(--river-h) + var(--river-h) + var(--river-gap) + var(--river-gap) + 8px);overflow-y:auto}
 .river-north{align-self:start}
 .river-south{align-self:end}
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .river-east,.river-west{grid-template-columns:repeat(7,var(--river-w))}
+  /* A single row can move toward the desk center by about one tile. Two or
+     more rows already extend inward and stay put to protect the wind board. */
+  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvh,-2px) - 23px))}
+}
+@media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvw,-2px) - 23px))}
+}
 @media (orientation:landscape) and (max-height:380px),
        (orientation:portrait) and (max-width:380px) and (pointer:coarse){
   .river-north,.river-south{max-height:calc(var(--river-h) + var(--river-h) + var(--river-gap) + 8px)}
@@ -426,7 +446,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 }
 @media (orientation:landscape) and (max-height:340px),
        (orientation:portrait) and (max-width:340px) and (pointer:coarse){
-  .discard-zone{--river-w:14px;--river-h:18px}
+  .discard-zone{--river-w:14px;--river-h:18px;--river-gap:1px}
   .table-center{width:116px}
   .table-center .wind-ring{width:44px;height:44px}
   .wall-info{inset:15px}.wall-info strong{font-size:10px}
@@ -445,4 +465,75 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
        (orientation:portrait) and (max-width:340px) and (pointer:coarse){
   .seat-top .tile.back{width:18px}
   .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:14px;height:19px}
+}
+@media(max-height:430px){.mode-dialog{width:min(470px,calc(100vw - 20px));padding:10px 16px}.mode-dialog[open]{gap:5px}.mode-dialog .mode-mark{display:none}.mode-dialog h2{font-size:18px}.mode-dialog p{margin:0;font-size:11px}.mode-choice{padding:7px 12px;gap:1px}.mode-choice strong{font-size:15px}.mode-choice small{font-size:10px}}
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .action-egg-tiles img{width:14px;height:19px}
+  .live-egg-count{min-width:13px;height:13px;padding:0 1px;font-size:9px}
+}
+
+/* Desktop uses a 16:10 landscape table. The board is letterboxed inside
+   narrower or taller browser windows instead of stretching into a square. */
+@media (min-width:761px) and (min-height:650px){
+  .table{
+    --board-side:clamp(105px,14%,252px);
+    --board-top:clamp(100px,17%,165px);
+    --board-bottom:clamp(145px,22%,190px);
+    width:min(100%,160dvh);
+    min-height:0;
+    flex:none;
+    aspect-ratio:16 / 10;
+    margin:auto;
+  }
+}
+
+/* The menu is a sibling of the table, so opening its 56px rail never covers
+   cards or rivers. Existing seat and river positions remain table-relative. */
+.game-stage{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;width:100%;min-height:100dvh}
+.table-meta{position:absolute;top:8px;left:clamp(132px,calc(2vw + 122px),154px);z-index:10;display:flex;align-items:center;gap:5px;max-width:calc(100% - 230px)}
+.table-meta .online-connection-badge{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.menu-toggle{position:absolute;top:8px;right:clamp(8px,2vw,28px);z-index:12;display:flex;align-items:center;justify-content:center;gap:4px;min-height:34px;padding:5px 9px;border:1px solid #e9c466;border-radius:7px;background:#0c4238;color:#fff3ce;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 3px 8px #001b18aa}
+.menu-toggle:hover,.menu-toggle:focus-visible{background:#1a6454;outline:2px solid #f1d983;outline-offset:2px}
+.menu-toggle span[aria-hidden]{font-size:16px;line-height:1}
+.game-menu{width:56px;min-width:56px;height:100%;min-height:0;align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border-left:1px solid #83b5a366;background:#092d28;overflow-y:auto;scrollbar-width:none}
+.game-menu::-webkit-scrollbar{display:none}
+.game-menu[hidden]{display:none}
+.game-menu .menu-item,.game-menu .menu-theme{width:46px;min-height:44px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;margin:0;padding:3px 1px;border:1px solid #729c8e;border-radius:6px;background:#185044;color:#fff5d7;font-size:11px;font-weight:700;text-align:center;white-space:nowrap;cursor:pointer}
+.game-menu .menu-item:hover,.game-menu .menu-item:focus-visible,.game-menu .menu-theme:focus-within{background:#276c5b;outline:2px solid #e6c56d;outline-offset:1px}
+.game-menu .menu-item:disabled{opacity:.5;cursor:not-allowed}
+.game-menu .menu-theme select{width:42px;max-width:42px;height:22px;padding:0 1px;border:0;border-radius:3px;background:#0b3b32;color:#ffe6a7;font-size:11px;font-weight:700;text-align:center;cursor:pointer}
+.game-menu #soundBtn{display:flex}
+.game-menu .menu-sound small{color:#ffe09a;font-size:11px}
+.game-menu .menu-volume{flex:1;min-height:110px;display:flex;flex-direction:column;align-items:center;gap:5px;color:#dce9d7;font-size:11px;white-space:nowrap}
+.game-menu .menu-volume input{width:18px;height:84px;margin:0;writing-mode:vertical-lr;direction:rtl;accent-color:#e9b949;cursor:pointer}
+.game-menu .menu-new{margin-top:auto;background:linear-gradient(#f5cd67,#dca538);border-color:#e9b949;color:#352000}
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .game-stage{height:100dvh;min-height:0}
+  .table-meta{top:2px;left:76px;gap:3px;max-width:min(210px,calc(100% - 130px))}
+  .table-meta .match-circle-badge,.table-meta .online-connection-badge{padding:2px 4px;font-size:9px}
+  .menu-toggle{top:2px;right:2px;min-height:30px;padding:3px 5px;font-size:10px}
+  .menu-toggle span[aria-hidden]{font-size:13px}
+  .game-menu{gap:3px;padding:3px 4px}
+  .game-menu .menu-item,.game-menu .menu-theme{min-height:38px;font-size:11px}
+  .game-menu .menu-volume{min-height:58px;gap:2px;font-size:11px}
+  .game-menu .menu-volume input{height:50px}
+}
+@media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .game-stage{width:100%;height:100%;min-height:0}
+}
+
+/* Keep the bao frame close to its contents and show the real tile at its
+   intended size. This applies equally to the empty slot, back and face. */
+.bao-panel{min-width:0;min-height:0;gap:4px;padding:3px 5px}
+.bao-panel #baoTile{display:flex;align-items:center;justify-content:center}
+.bao-panel .tile,.bao-panel .tile.small,.bao-panel .tile.back{width:38px;height:50px;margin:0;transform:none}
+.bao-panel .tile img{width:100%;height:100%;margin:0}
+.bao-panel .bao-placeholder{width:38px;height:50px}
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .bao-panel{gap:2px;padding:2px 3px;font-size:10px}
+  .bao-panel .tile,.bao-panel .tile.small,.bao-panel .tile.back{width:31px;height:41px;margin:0;transform:none}
+  .bao-panel .bao-placeholder{width:31px;height:41px}
 }
