@@ -362,7 +362,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .seat-top{top:3px;gap:3px}
   .seat-top .tile.back{width:clamp(19px,calc(7dvh - 2px),27px);height:auto;aspect-ratio:3 / 4;margin:0 1px}
   .seat-top .concealed-row{overflow:visible;max-width:none}
-  .seat-left,.seat-right{--side-tile-long:clamp(24px,calc(7.4dvh - 2px),30px);--side-tile-short:clamp(12px,calc(4.2dvh - 2px),17px);--side-open-long:clamp(18px,calc(5.5dvh - 2px),23px);--side-open-short:clamp(10px,calc(3.6dvh - 2px),13px);--side-tile-gap:1px;top:clamp(35px,10.5dvh,44px);bottom:clamp(47px,14dvh,60px);width:var(--board-side);display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);align-items:center;justify-items:center;column-gap:2px;row-gap:0}
+  .seat-left,.seat-right{--side-tile-long:clamp(24px,calc(7.4dvh - 2px),30px);--side-tile-short:clamp(12px,calc(4.2dvh - 2px),17px);--side-open-long:clamp(22px,6.2dvh,27px);--side-open-short:clamp(13px,3.6dvh,16px);--side-tile-gap:1px;top:clamp(35px,10.5dvh,44px);bottom:clamp(47px,14dvh,60px);width:var(--board-side);display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);align-items:center;justify-items:center;column-gap:2px;row-gap:0}
   .seat-left{left:0;grid-template-columns:18px minmax(0,1fr) var(--side-tile-long)}
   .seat-right{right:0;grid-template-columns:var(--side-tile-long) minmax(0,1fr) 18px}
   .seat-left .seat-badge-slot,.seat-right .seat-badge-slot{position:static;grid-row:1 / 3;width:auto;align-self:center;justify-self:center;transform:none;z-index:7}
@@ -385,7 +385,10 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .bottom-dock{bottom:3px;gap:2px}
   .seat-bottom{position:relative;display:flex;flex-direction:column;width:calc(100% - 8px);padding:0;gap:0}
   .seat-bottom .seat-badge-slot{position:absolute;left:2px;bottom:8px;z-index:2;align-self:auto}
-  .seat-bottom .seat-waits-slot{position:absolute;left:50%;bottom:calc(100% + 31px);width:min(500px,95%);height:auto;transform:translateX(-50%);z-index:5}
+  .seat-bottom .seat-waits-slot{position:absolute;left:50%;bottom:calc(100% + 1px);width:min(500px,95%);height:auto;transform:translateX(-50%);z-index:5}
+  .seat-bottom .seat-waits-slot .own-waits{font-size:9px;line-height:1.2;padding:1px 5px;margin:0}
+  .seat-bottom .seat-waits-slot .own-waits span:not(:first-child){padding:0 3px}
+  .seat-bottom .seat-waits-slot .own-waits span:first-child{display:none}
   .seat-bottom-cards{width:calc(100% - 78px);margin-left:78px;padding:8px 2px 2px;gap:5px;justify-content:safe center;overflow-x:auto}
   .seat-bottom .tile{width:clamp(24px,calc(8dvh - 3px),31px);height:clamp(33px,calc(11dvh - 5px),42px)}
   .seat-bottom .tile.drawn{margin-left:9px}
@@ -397,14 +400,14 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .action-btn{padding:4px 8px;min-width:40px}
   .bao-panel{top:2px;left:2px;min-width:70px;min-height:38px;padding:2px 4px;font-size:9px}
   .bao-panel .tile{transform:scale(.55);margin-right:-14px}.bao-placeholder{width:20px;height:27px}
-  .discard-zone{inset:6px;grid-template-rows:minmax(32px,.7fr) minmax(75px,1.5fr) minmax(32px,.7fr)}
+  .discard-zone{--river-w:19px;--river-h:25px;inset:6px;grid-template-rows:minmax(32px,.7fr) minmax(75px,1.5fr) minmax(32px,.7fr)}
   .river-south{align-content:start;transform:translateY(clamp(-10px,47px - 14dvh,-2px))}
 }
 @media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .game-shell{width:100dvh;height:100dvw}
   .table{--board-top:clamp(62px,17dvw,72px);--board-bottom:clamp(62px,19dvw,80px);width:min(100%,100dvh,190dvw)}
   .seat-top .tile.back{width:clamp(19px,calc(7dvw - 2px),27px)}
-  .seat-left,.seat-right{--side-tile-long:clamp(24px,calc(7.4dvw - 2px),30px);--side-tile-short:clamp(12px,calc(4.2dvw - 2px),17px);--side-open-long:clamp(18px,calc(5.5dvw - 2px),23px);--side-open-short:clamp(10px,calc(3.6dvw - 2px),13px);top:clamp(35px,10.5dvw,44px);bottom:clamp(47px,14dvw,60px)}
+  .seat-left,.seat-right{--side-tile-long:clamp(24px,calc(7.4dvw - 2px),30px);--side-tile-short:clamp(12px,calc(4.2dvw - 2px),17px);--side-open-long:clamp(22px,6.2dvw,27px);--side-open-short:clamp(13px,3.6dvw,16px);top:clamp(35px,10.5dvw,44px);bottom:clamp(47px,14dvw,60px)}
   .seat-bottom .tile{width:clamp(24px,calc(8dvw - 3px),31px);height:clamp(33px,calc(11dvw - 5px),42px)}
   .seat-bottom .seat-meld-slot .tile,.seat-bottom .seat-egg-slot .tile{width:clamp(17px,calc(6dvw - 2px),21px);height:clamp(24px,calc(8dvw - 4px),28px)}
   .river-south{transform:translateY(clamp(-10px,47px - 14dvw,-2px))}
@@ -420,10 +423,10 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .river-east,.river-west{grid-template-columns:repeat(7,var(--river-w))}
   /* A single row can move toward the desk center by about one tile. Two or
      more rows already extend inward and stay put to protect the wind board. */
-  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvh,-2px) - 23px))}
+  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvh,-2px) - 62px))}
 }
 @media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
-  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvw,-2px) - 23px))}
+  .river-south[data-rows="1"]{transform:translateY(calc(clamp(-10px,47px - 14dvw,-2px) - 62px))}
 }
 @media (orientation:landscape) and (max-height:380px),
        (orientation:portrait) and (max-width:380px) and (pointer:coarse){
@@ -454,7 +457,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 }
 @media (orientation:landscape) and (max-height:340px),
        (orientation:portrait) and (max-width:340px) and (pointer:coarse){
-  .discard-zone{--river-w:14px;--river-h:18px;--river-gap:1px}
+  .discard-zone{--river-w:16px;--river-h:21px;--river-gap:1px}
   .table-center{width:116px}
   .table-center .wind-ring{width:44px;height:44px}
   .wall-info{inset:15px}.wall-info strong{font-size:10px}
@@ -467,12 +470,12 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 @media (orientation:landscape) and (max-height:600px),
        (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .seat-top .tile.back{width:21px;height:auto;aspect-ratio:3/4}
-  .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:16px;height:21px}
+  .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:20px;height:27px}
 }
 @media (orientation:landscape) and (max-height:340px),
        (orientation:portrait) and (max-width:340px) and (pointer:coarse){
   .seat-top .tile.back{width:18px}
-  .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:14px;height:19px}
+  .seat-top .seat-meld-slot .tile,.seat-top .seat-egg-slot .tile{width:17px;height:23px}
 }
 @media(max-height:430px){.mode-dialog{width:min(470px,calc(100vw - 20px));padding:10px 16px}.mode-dialog[open]{gap:5px}.mode-dialog .mode-mark{display:none}.mode-dialog h2{font-size:18px}.mode-dialog p{margin:0;font-size:11px}.mode-choice{padding:7px 12px;gap:1px}.mode-choice strong{font-size:15px}.mode-choice small{font-size:10px}}
 @media (orientation:landscape) and (max-height:600px),
@@ -549,5 +552,23 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
        (orientation:portrait) and (max-width:760px) and (pointer:coarse){
   .bao-panel{gap:2px;padding:2px 3px;font-size:10px}
   .bao-panel .tile,.bao-panel .tile.small,.bao-panel .tile.back{width:31px;height:41px;margin:0;transform:none}
-  .bao-panel .bao-placeholder{width:31px;height:41px}
+.bao-panel .bao-placeholder{width:31px;height:41px}
+}
+
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .river-south[data-rows="1"]{transform:translateY(-40px);align-self:center}
+}
+@media (orientation:landscape) and (max-height:500px),
+       (orientation:portrait) and (max-width:500px) and (pointer:coarse){
+  .river-south[data-rows="1"]{transform:translateY(-60px)}
+}
+
+/* Mobile table: the listening summary belongs to the hand dock, not the river. */
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .seat-bottom .seat-waits-slot{bottom:calc(100% - 2px);pointer-events:none}
+  .seat-bottom .seat-waits-slot .own-waits{padding:1px 5px;margin:0;font-size:9px;line-height:1.2;pointer-events:none}
+  .seat-bottom .seat-waits-slot .own-waits span:first-child{display:none}
+  .seat-bottom .seat-waits-slot .own-waits span:not(:first-child){padding:0 3px}
 }

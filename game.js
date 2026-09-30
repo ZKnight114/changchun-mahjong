@@ -648,7 +648,7 @@ function startOnlineResponses(options,onResolved,robLabel="") {
     for(const player of players) if(!claim.answers.has(player)) claim.answers.set(player,null);
     finishOnlineResponses(claim);
   },20000);
-  setStatus(robLabel?`等待${robLabel}回应`:"等待其他玩家吃碰杠胡回应");
+  setStatus(robLabel?`等待${robLabel}${options.some(option=>option.type==="peng")?" / 碰":""}回应`:"等待其他玩家吃碰杠胡回应");
 }
 
 function answerOnlineResponse(claim,player,option) {
@@ -754,7 +754,16 @@ function executeClaim(option,discarder,tile) {
     advanceAfterDiscard(discarder);
     return false;
   }
-  const p=option.p; state.discards.pop(); state.current=p; state.lastDiscard=null; state.drawnIndex=null; state.selectedTile=null; state.selectedIndex=null;
+  if(option.fromEgg) {
+    // A supplemented egg is offered from the player's hand, not the river.
+    // Claiming it cancels the supplement and its replacement draw.
+    if(option.type!=="peng"||!state.lastDiscard?.egg||state.lastDiscard.player!==discarder
+      ||state.lastDiscard.tile!==tile||!state.hands[discarder].includes(tile)) return false;
+    removeTile(state.hands[discarder],tile);
+    state.lastDrawn[discarder]=null;
+    if(discarder===0) state.drawnIndex=null;
+  } else state.discards.pop();
+  const p=option.p; state.current=p; state.lastDiscard=null; state.drawnIndex=null; state.selectedTile=null; state.selectedIndex=null;
   if(option.type==="chi") {
     const needed=[...option.pattern]; needed.splice(needed.indexOf(tile),1);
     needed.forEach(t=>removeTile(state.hands[p],t));
@@ -1526,29 +1535,51 @@ function offerRobWin(player,tile,label,complete,kind) {
     if(player===0) state.drawnIndex=null;
     return cueWin(claimant,"点炮",winningHand);
   };
-  const wins=[];
+  const options=[];
   for(let step=1;step<4;step++) {
     const claimant=(player+step)%4;
     const unreportedWait=!state.ting[claimant]&&getLegalWaits(claimant,state.hands[claimant]).includes(tile);
     if(evaluateChangchunWin(claimant,[...state.hands[claimant],tile],tile,"点炮",{allowUnreportedWin:unreportedWait}).legal)
-      wins.push({p:claimant,step});
+      options.push({p:claimant,step,type:"hu",priority:3});
+    if(kind==="egg"&&canClaimMeld(claimant,"peng",tile))
+      options.push({p:claimant,step,type:"peng",priority:2,fromEgg:true});
   }
+  const resolve=option=>option?.type==="hu"?award(option.p)
+    :option?.type==="peng"?cueClaim(option,player,tile):complete();
   if(isOnlineHost()) return startOnlineResponses(
-    wins.map(win=>({...win,type:"hu",priority:3})),
-    best=>best?award(best.p):complete(),
+    options,
+    resolve,
     label
   );
-  const human=wins.find(win=>win.p===0), ai=wins.find(win=>win.p!==0);
-  if(human) {
-    state.pending={onPass:()=>ai?award(ai.p):complete()};
-    setActions([
-      {label,kind:"hu",run:()=>{state.pending=null;award(0);}},
-      {label:"过",kind:"pass",run:()=>{const next=state.pending?.onPass;state.pending=null;setActions();next?.();}}
-    ]);
-    setStatus(`可${label}`); beep(660,.06); render(); return;
+  const humanHu=options.find(option=>option.p===0&&option.type==="hu");
+  const aiHu=options.filter(option=>option.p!==0&&option.type==="hu")
+    .sort((a,b)=>a.step-b.step)[0];
+  if(aiHu&&(!humanHu||aiHu.step<humanHu.step)) return award(aiHu.p);
+  let aiPeng=null;
+  if(!aiHu) {
+    const passRouteCache=new Map();
+    const eligible=options.filter(option=>option.p!==0&&option.type==="peng")
+      .filter(option=>{
+        const gain=state.aiDifficulty==="hard"
+          ?hardClaimGain(option,tile,passRouteCache):aiClaimGain(option,tile);
+        return state.aiDifficulty==="hard"?hardShouldClaim(gain):gain>0;
+      });
+    aiPeng=eligible.sort((a,b)=>a.step-b.step)[0]||null;
   }
-  if(ai) return award(ai.p);
-  complete();
+  const aiBest=aiHu||aiPeng;
+  const human=options.filter(option=>option.p===0&&(!aiBest
+    ||option.priority>aiBest.priority
+    ||option.priority===aiBest.priority&&option.step<aiBest.step));
+  if(!human.length) return resolve(aiBest);
+  const onPass=()=>resolve(aiBest);
+  state.pending={options:human,onPass};
+  setActions([
+    ...human.map(option=>({label:option.type==="hu"?label:"碰",kind:option.type==="hu"?"hu":"",
+      run:()=>{if(state.phase!=="claim"||!state.pending)return;state.pending=null;setActions();resolve(option);}})),
+    {label:"过",kind:"pass",run:()=>{if(state.phase!=="claim"||!state.pending)return;state.pending=null;setActions();onPass();}}
+  ]);
+  setStatus(`可${human.map(option=>option.type==="hu"?label:"碰").join(" / ")}`);
+  beep(660,.06); render();
 }
 
 function completeAddedKong(player,tile) {
