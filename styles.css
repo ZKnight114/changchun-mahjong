@@ -53,10 +53,12 @@ button { font: inherit; }
 .bottom-dock { position:absolute;left:0;right:0;bottom:6px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;min-height:0;z-index:7; }
 .seat-bottom { width:min(920px,96vw);padding-bottom:6px;flex-direction:column;justify-content:flex-end; }
 .seat-bottom .seat-waits-slot{display:flex;align-items:center;justify-content:center;width:min(620px,95%);height:27px;flex:none;pointer-events:none}
+.seat-bottom .seat-waits-slot.empty{height:0}
 .seat-bottom .seat-waits-slot .own-waits{max-width:100%;margin:0;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;pointer-events:auto}
 .seat-bottom .seat-badge-slot{align-self:center}.seat-bottom-cards{width:100%;display:flex;align-items:flex-end;justify-content:center;gap:12px;min-width:0}.seat-bottom-cards .seat-hand-slot{order:1;min-width:0}.seat-bottom-cards .seat-meld-slot{order:2;flex:none}.seat-bottom-cards .seat-meld-slot.empty{display:none}
 .seat-top .seat-badge-slot{order:1}.seat-top .seat-hand-slot{order:2}.seat-top .seat-meld-slot{order:3}.seat-top .seat-meld-slot.empty{display:none}.seat-top .count-bubble{display:none}
 .player-badge { display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:20px;background:#032b26cc;border:1px solid #ffffff18;font-size:12px;white-space:nowrap; }
+.player-badge .player-name{min-width:0;max-width:8em;overflow:hidden;text-overflow:ellipsis}
 .player-badge.current { color:#ffe28b;background:linear-gradient(90deg,#5d4318dd,#123d37);box-shadow:0 0 0 3px var(--gold),0 0 20px #f5c64b66;animation:turnPulse 1.4s ease-in-out 2; }
 .avatar { width:26px;height:26px;border-radius:50%;display:grid;place-content:center;background:linear-gradient(145deg,#dfc474,#9c7130);color:#31220a;font-weight:800; }
 .dealer { padding:1px 4px;border-radius:3px;background:#b82f28;color:white;font-size:9px; }
@@ -242,6 +244,7 @@ button.tile:hover { transform:translateY(-7px);filter:brightness(1.07); }
 .seat-top .tile.back img{display:block;width:100%;height:100%;object-fit:contain}
 .seat-top .concealed-row{align-items:flex-end;overflow:visible;max-width:none}
 .seen-bao-badge{padding:1px 5px;border:1px solid #9edaff;border-radius:4px;background:#135a77;color:#d9f5ff;font-size:9px;font-weight:700;white-space:nowrap}
+.ting-badge,.seen-bao-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 2px;line-height:1}
 @media(max-width:760px){.seat-top .tile.back{width:clamp(12px,2.1vw,18px);height:auto;aspect-ratio:3/4;margin:0}.seat-top .concealed-row{max-width:none;overflow:visible}}
 
 /* C images include their own full tile edge; side-seat images still need the
@@ -276,6 +279,8 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 .result-summary{width:min(820px,100%);margin:10px auto 12px;padding:10px 14px;border:1px solid #e7d6ae;border-radius:12px;background:#f6edda;text-align:left}
 .result-summary .result-shape{text-align:center}.result-summary .pattern-list{margin:8px 0;justify-content:center}
 .result-summary .score-table{width:100%;max-width:none;margin:8px 0 0;border:1px solid #e4d7bc;background:#fffaf1}
+.result-bao{display:flex;align-items:center;justify-content:center;gap:7px;min-height:40px;margin-bottom:7px;color:#76542b;font-size:12px;font-weight:700}
+.result-bao .tile.small{width:29px;height:39px;margin:0;flex:none}.result-bao-name{font-weight:600}.result-bao-empty{color:#8b8071}
 .result-hands{display:grid;gap:6px;margin:13px auto 20px;max-width:820px;text-align:left}
 .result-player-row{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:9px;padding:7px 9px;border:1px solid #e2d6bc;border-radius:9px;background:#fffdf8}
 .result-player-row.winner{border-color:#e7ab4b;background:#fff2d2;box-shadow:inset 3px 0 #d3952c}
@@ -284,6 +289,9 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 .result-player-tiles .result-meld,.result-player-tiles .result-concealed{display:flex;flex:none;align-items:flex-end}
 .result-player-tiles .result-meld{padding-right:4px;border-right:2px solid #d8c69e}.result-player-tiles .tile.small{width:29px;height:39px;margin:0 1px}
 .result-player-tiles .tile.back{width:29px;height:39px}
+.result-win-tile{position:relative;display:inline-flex;flex:none;align-items:flex-end;margin:0 3px;border-radius:3px;box-shadow:0 0 0 2px #ce3f28,0 0 8px #ce3f2855}
+.result-player-tiles .result-win-tile .tile.small{margin:0}
+.result-win-badge{position:absolute;right:0;bottom:0;display:grid;place-items:center;width:15px;height:15px;border-radius:4px 0 2px 0;background:#c32b20;color:#fff;font:800 11px/1 sans-serif;pointer-events:none}
 .result-player-tiles .result-meld{flex-direction:column;align-items:flex-start;gap:2px}
 .result-group-label{padding-left:2px;color:#926525;font-size:10px;font-weight:800;line-height:1.1;white-space:nowrap}
 .result-group-tiles{display:flex;align-items:flex-end}.result-egg-tile{position:relative;display:block;flex:none}
@@ -304,7 +312,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
   .bao-panel{top:2px;left:2px;min-width:70px;min-height:38px;padding:2px 4px;font-size:9px}.bao-panel .tile{transform:scale(.55);margin-right:-14px}.bao-placeholder{width:20px;height:27px}
   .action-cue{width:70px;height:70px;font-size:42px}.cue-north{top:calc(var(--board-top) + 30px)}.cue-south{bottom:calc(var(--board-bottom) + 45px)}.cue-west{left:calc(var(--board-side) + 6px)}.cue-east{right:calc(var(--board-side) + 6px)}
   .bao-reveal-overlay{padding:8px 15px;font-size:13px;gap:4px}.bao-reveal-overlay .tile{width:76px;height:101px}
-  .result-modal{padding:16px 18px;max-height:calc(100dvh - 12px)}.result-icon{display:none}.result-modal h2{font-size:21px;margin:0 0 4px}.result-modal p{margin:4px 0}.result-shape{font-size:12px}.pattern-list{margin:6px 0}.score-table{margin:6px auto}.result-hands{gap:3px;margin:7px auto}.result-player-row{grid-template-columns:62px minmax(0,1fr);gap:5px;padding:3px 5px}.result-player-info strong{font-size:11px}.result-player-info{font-size:9px}.result-player-tiles .tile.small{width:18px;height:24px;margin:0 1px}.result-player-tiles .tile.back{width:18px;height:24px}
+  .result-modal{padding:16px 18px;max-height:calc(100dvh - 12px)}.result-icon{display:none}.result-modal h2{font-size:21px;margin:0 0 4px}.result-modal p{margin:4px 0}.result-shape{font-size:12px}.pattern-list{margin:6px 0}.score-table{margin:6px auto}.result-hands{gap:3px;margin:7px auto}.result-player-row{grid-template-columns:62px minmax(0,1fr);gap:5px;padding:3px 5px}.result-player-info strong{font-size:11px}.result-player-info{font-size:9px}.result-player-tiles .tile.small{width:18px;height:24px;margin:0 1px}.result-player-tiles .tile.back{width:18px;height:24px}.result-bao{min-height:24px;margin-bottom:3px;gap:4px;font-size:9px}.result-bao .tile.small{width:18px;height:24px}.result-win-badge{width:11px;height:11px;font-size:9px}
 }
 @media (orientation:landscape) and (max-height:600px) and (max-width:950px),
        (orientation:portrait) and (max-width:760px) and (pointer:coarse){
@@ -475,7 +483,7 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
 
 /* Desktop uses a 16:10 landscape table. The board is letterboxed inside
    narrower or taller browser windows instead of stretching into a square. */
-@media (min-width:761px) and (min-height:650px){
+@media (min-width:761px) and (min-height:601px){
   .table{
     --board-side:clamp(105px,14%,252px);
     --board-top:clamp(100px,17%,165px);
@@ -486,6 +494,12 @@ body[data-tile-theme="c"] .bao-reveal-overlay .tile img{width:100%;height:100%}
     aspect-ratio:16 / 10;
     margin:auto;
   }
+  .seat-left .player-badge,.seat-right .player-badge{width:max-content;max-width:min(280px,calc(var(--board-side) + 130px));gap:5px}
+  .seat-left .seat-badge-slot,.seat-right .seat-badge-slot{display:flex}
+  .seat-left .seat-badge-slot{justify-content:flex-start}
+  .seat-right .seat-badge-slot{justify-content:flex-end}
+  .seat-left .player-badge,.seat-right .player-badge{flex:none;margin:0}
+  .seat-bottom-cards{padding-top:8px}
 }
 
 /* The menu is a sibling of the table, so opening its 56px rail never covers

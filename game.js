@@ -41,7 +41,7 @@ function setTileTheme(theme) {
   if(selector) selector.value=theme;
   render();
   // Result and action buttons are outside the normal board render.
-  for(const container of ["winningHand","baoRevealCard","actionOptions"]) {
+  for(const container of ["winningHand","resultBao","baoRevealCard","actionOptions"]) {
     $(container)?.querySelectorAll("img[data-tile-image]").forEach(img=>{
       const value=img.dataset.tileImage;
       img.src=tileImagePath(value==="back"?0:Number(value),value==="back");
@@ -349,10 +349,10 @@ function getPlayerSlots(el) {
 function renderPlayer(p) {
   const el=$(`player${p}`), slots=getPlayerSlots(el), current=state.current===p && state.phase!=="gameover";
   const ting=state.ting[p];
-  const tingLabel=ting?`<span class="ting-badge">已报听</span>`:"";
+  const tingLabel=ting?'<span class="ting-badge" title="已报听" aria-label="已报听">听</span>':"";
   const seenBao=state.baopai!==null&&state.baopaiRevealed[p];
-  const baoLabel=seenBao?'<span class="seen-bao-badge" title="这家已看宝">已看宝</span>':"";
-  const badgeMarkup=`<div class="player-badge ${current?"current":""}"><span class="avatar">${Array.from(NAMES[p])[0]||""}</span><span>${NAMES[p]}</span><span>${seatWind(p)}家</span>${p===state.dealer?'<span class="dealer">庄</span>':""}${tingLabel}${baoLabel}</div>`;
+  const baoLabel=seenBao?'<span class="seen-bao-badge" title="已看宝" aria-label="已看宝">宝</span>':"";
+  const badgeMarkup=`<div class="player-badge ${current?"current":""}"><span class="avatar">${Array.from(NAMES[p])[0]||""}</span><span class="player-name" title="${NAMES[p]}">${NAMES[p]}</span><span>${seatWind(p)}家</span>${p===state.dealer?'<span class="dealer">庄</span>':""}${tingLabel}${baoLabel}</div>`;
   if(slots.badgeMarkup!==badgeMarkup) {
     slots.badge.innerHTML=badgeMarkup;
     slots.badgeMarkup=badgeMarkup;
@@ -433,6 +433,7 @@ function renderOwnWaits(slots,ting) {
     slots.waits.innerHTML=markup;
     slots.waitMarkup=markup;
   }
+  slots.waits.classList.toggle("empty",!waits.length);
 }
 
 function selectTile(tile) {
@@ -696,11 +697,31 @@ function resolveClaims(discarder,tile) {
 function resolveNormalClaims(human,ai,discarder,tile) {
   // Compare a claim followed by its best discard with keeping the concealed
   // hand. A legal chi is often strategically bad if it breaks a ready-made set.
-  const aiEligible=ai.filter(o=>o.type!=="hu")
+  const passRouteCache=new Map();
+  const evaluated=ai.filter(o=>o.type!=="hu")
     .map(option=>({option,gain:state.aiDifficulty==="hard"
-      ?hardClaimGain(option,tile):option.type==="gang"?100:aiClaimGain(option,tile)}))
-    .filter(candidate=>candidate.gain>0)
-    .sort((a,b)=>b.option.priority-a.option.priority||a.option.step-b.option.step||b.gain-a.gain);
+      ?hardClaimGain(option,tile,passRouteCache):option.type==="gang"?100:aiClaimGain(option,tile)}));
+  let aiEligible;
+  if(state.aiDifficulty==="hard") {
+    const byPlayer=new Map();
+    evaluated.forEach(candidate=>{
+      const seat=candidate.option.p;
+      if(!byPlayer.has(seat)) byPlayer.set(seat,[]);
+      byPlayer.get(seat).push(candidate);
+    });
+    aiEligible=[];
+    for(const options of byPlayer.values()) {
+      const gang=options.filter(candidate=>candidate.option.type==="gang"&&candidate.gain>0)
+        .sort((a,b)=>b.gain-a.gain)[0];
+      if(gang) {aiEligible.push(gang);continue;}
+      const best=options.filter(candidate=>candidate.option.type==="chi"||candidate.option.type==="peng")
+        .sort((a,b)=>b.gain-a.gain||b.option.priority-a.option.priority)[0];
+      // One probability roll per robot response, even if several chi patterns
+      // use the same discarded tile.
+      if(best&&hardShouldClaim(best.gain)) aiEligible.push(best);
+    }
+  } else aiEligible=evaluated.filter(candidate=>candidate.gain>0);
+  aiEligible.sort((a,b)=>b.option.priority-a.option.priority||a.option.step-b.option.step||b.gain-a.gain);
   const aiBest=aiEligible[0]?.option;
   let shown=[...human];
   if(aiBest) shown=shown.filter(o=>o.type==="hu"||o.priority>aiBest.priority || (o.priority===aiBest.priority&&o.step<aiBest.step));
@@ -921,42 +942,84 @@ function hardPublicRemaining(player) {
   return remaining.map(count=>Math.max(0,count));
 }
 
+function hardStrategicWeights(player) {
+  const scores=state.scores||[0,0,0,0];
+  const lead=scores[player]-Math.max(...scores.filter((_,seat)=>seat!==player));
+  const progress=Math.min(1,(state.match?.dealerAdvances||0)/16);
+  const lateWall=state.wall.length<36?1:0;
+  const stakes=progress*.65+lateWall*.35;
+  return {attack:Math.max(.75,Math.min(1.25,1-lead/120*stakes)),
+    defense:Math.max(.7,Math.min(1.8,1+lead/55*stakes))};
+}
+
+function hardWinGain(player,hand,tile,method,moBao=false) {
+  const result=evaluateChangchunWin(player,[...hand,tile],tile,method,
+    {forTenpai:true,disableBao:true});
+  if(!result.legal) return 0;
+  const pattern=detectPattern(result.hand,shapeMelds(player),result.winTile,method);
+  if(isSelfDraw(method)) return computeScore({winner:player,method,pattern,moBao}).winnerGain;
+  let gain=0;
+  for(let loser=0;loser<4;loser++) if(loser!==player)
+    gain+=computeScore({winner:player,loser,method,pattern}).winnerGain/3;
+  return gain;
+}
+
+function hardBaoBonus(player,hand,waitTiles,remaining,normalOutValue) {
+  if(!waitTiles.length||state.wall.length<5) return 0;
+  const total=remaining.reduce((sum,count)=>sum+count,0);
+  if(!total) return 0;
+  const known=state.baopaiRevealed[player]&&state.baopai!==null;
+  // An unrevealed treasure is averaged over public unknown copies. Its actual
+  // identity is never consulted until this player has looked at it.
+  const bestSelf=Math.max(...waitTiles.map(tile=>hardWinGain(player,hand,tile,"自摸",true)));
+  if(!bestSelf) return 0;
+  const baoValue=bestSelf/4;
+  let bonus=0;
+  for(let tile=0;tile<34;tile++) {
+    const copies=remaining[tile];
+    if(!copies) continue;
+    const probability=known?(tile===state.baopai?1:0):copies/total;
+    if(!probability) continue;
+    const normal=normalOutValue.get(tile)||0;
+    bonus+=copies*probability*Math.max(0,baoValue-normal);
+  }
+  return bonus*.65; // The treasure can only be viewed from the next turn.
+}
+
 function hardWaitValue(player,hand,waitTiles,remaining) {
   let value=0;
-  const melds=shapeMelds(player);
+  const normalOutValue=new Map();
   for(const tile of waitTiles) {
     const copies=remaining[tile];
     if(!copies) continue;
-    const full=[...hand,tile];
-    const self=evaluateChangchunWin(player,full,tile,"自摸",{forTenpai:true,disableBao:true});
-    const discard=evaluateChangchunWin(player,full,tile,"点炮",{forTenpai:true,disableBao:true});
-    if(!self.legal&&!discard.legal) continue;
-    const selfGain=self.legal?computeScore({winner:player,method:"自摸",
-      pattern:detectPattern(self.hand,melds,self.winTile,"自摸")}).winnerGain:0;
-    let discardGain=0;
-    if(discard.legal) for(let loser=0;loser<4;loser++) if(loser!==player)
-      discardGain+=computeScore({winner:player,loser,method:"点炮",
-        pattern:detectPattern(discard.hand,melds,discard.winTile,"点炮")}).winnerGain/3;
-    const estimatedGain=self.legal&&discard.legal?(selfGain+discardGain)/2:self.legal?selfGain:discardGain;
-    value+=copies*(1+Math.log2(1+estimatedGain)/4);
+    const selfGain=hardWinGain(player,hand,tile,"自摸");
+    const discardGain=hardWinGain(player,hand,tile,"点炮");
+    if(!selfGain&&!discardGain) continue;
+    const estimatedGain=selfGain&&discardGain?(selfGain+discardGain)/2:selfGain||discardGain;
+    // Use expected settlement points per visible out. A one-fan increase
+    // doubles this term, so high-fan narrow waits can compete with wide waits.
+    const outValue=estimatedGain/4;
+    normalOutValue.set(tile,outValue);
+    value+=copies*outValue;
   }
-  return value;
+  return value+hardBaoBonus(player,hand,waitTiles,remaining,normalOutValue);
 }
 
 function hardReadyPotential(player,hand,remaining,waitTiles=null) {
   if(!hasYaoJiu(hand,shapeMelds(player))) return 0;
   const waits=waitTiles||getLegalWaits(player,hand);
-  return hardWaitValue(player,hand,waits,remaining);
+  return hardWaitValue(player,hand,waits,remaining)*hardStrategicWeights(player).attack;
 }
 
-function hardDiscardDanger(player,tile,remaining) {
-  if(!remaining[tile]) return 0;
-  const threatened=[0,1,2,3].filter(opponent=>opponent!==player&&!!state.ting[opponent]);
-  if(!threatened.length) return 0;
-  const baoPao=!state.baopaiRevealed[player];
+function hardDiscardDanger(player,tile,remaining,baoViewed=state.baopaiRevealed[player]) {
+  // A fourth copy in our hand can still complete an opponent's wait. Public
+  // remaining is for draw odds, never for safety of a tile we are discarding.
+  const threatened=[0,1,2,3].filter(opponent=>opponent!==player);
+  const baoPao=!baoViewed;
   let danger=0;
   for(const opponent of threatened) {
     const open=shapeMelds(opponent),standing=isStanding(open);
+    const reported=!!state.ting[opponent];
     // Estimate liability from public posture, never from the opponent's wait
     // list or concealed tiles. Bao-pao uses the same payment rule as settlement.
     const liability=computeScore({winner:opponent,loser:player,method:"点炮",
@@ -967,10 +1030,14 @@ function hardDiscardDanger(player,tile,remaining) {
       &&Math.floor(discard.tile/9)===Math.floor(tile/9)&&Math.abs(discard.tile-tile)<=2).length:0;
     const sameSuitOpen=isSuit(tile)&&open.some(meld=>meld.tiles.some(id=>isSuit(id)
       &&Math.floor(id/9)===Math.floor(tile/9)));
+    const exposed=state.melds[opponent].length+state.eggs[opponent]
+      .filter(egg=>!egg.standardGang).length;
+    const tempo=Math.min(1,(state.discards.length+exposed*5)/42);
+    const unreportedChance=.025+.035*tempo+.012*Math.min(3,exposed);
     const evidence=Math.max(.35,1-.24*same-.07*nearby)*(sameSuitOpen?1.12:1);
-    danger+=liability*.1*(remaining[tile]/3)*evidence;
+    danger+=liability*(reported?.1:unreportedChance)*evidence;
   }
-  return danger*(state.wall.length<36?1.35:1);
+  return danger*(state.wall.length<36?1.35:1)*hardStrategicWeights(player).defense;
 }
 
 function hardShapeValue(hand,melds) {
@@ -1099,40 +1166,122 @@ function hardDrawSamples(remaining) {
   return samples;
 }
 
-function hardSimulatedDiscard(player,hand,remaining) {
+function hardSimulatedDiscard(player,hand,remaining,baoViewed=null) {
   const melds=shapeMelds(player),checked=new Set();
   let best=null;
   hand.forEach((tile,index)=>{
     if(checked.has(tile)) return;
     checked.add(tile);
     const after=hand.filter((_,position)=>position!==index);
-    const danger=hardDiscardDanger(player,tile,remaining);
+    const danger=hardDiscardDanger(player,tile,remaining,
+      baoViewed===null?state.baopaiRevealed[player]:baoViewed);
     const value=hardShapeValue(after,melds)-danger;
     if(!best||value>best.value) best={hand:after,tile,value,danger};
   });
   return best;
 }
 
-function hardRolloutValue(player,hand,remaining,samples) {
+function hardRolloutValue(player,hand,remaining,samples,baoViewed=null) {
   if(!samples.length) return hardProjectedValue(player,hand,remaining);
   let total=0;
   for(const [firstTile,secondTile] of samples) {
     const afterFirst=[...remaining];afterFirst[firstTile]--;
-    const first=hardSimulatedDiscard(player,[...hand,firstTile],afterFirst);
+    const first=hardSimulatedDiscard(player,[...hand,firstTile],afterFirst,baoViewed);
     if(secondTile===null) {
       total+=first.value;continue;
     }
     const afterSecond=[...afterFirst];afterSecond[secondTile]--;
-    const second=hardSimulatedDiscard(player,[...first.hand,secondTile],afterSecond);
+    const second=hardSimulatedDiscard(player,[...first.hand,secondTile],afterSecond,baoViewed);
     total+=.3*first.value+.7*(hardProjectedValue(player,second.hand,afterSecond)
       -second.danger)-.5*first.danger;
   }
   return total/samples.length;
 }
 
+function hardLegalRouteValue(player,hand,remaining) {
+  if(hand.length%3!==1) return 0;
+  const total=remaining.reduce((sum,count)=>sum+count,0);
+  if(!total) return 0;
+  const seen=new Set();
+  let weighted=0,weight=0;
+  // Only the best discard candidates reach this more expensive rules check.
+  // A hypothetical draw is tested against actual Changchun legal waits, not
+  // merely generic meld shape (which can miss 三门齐/幺九/刻子 requirements).
+  for(let sample=0;sample<10;sample++) {
+    const drawn=hardUnknownTileAt(remaining,(sample+.5)/10);
+    if(drawn===null||seen.has(drawn)) continue;
+    seen.add(drawn);
+    const afterDraw=[...hand,drawn],afterRemaining=[...remaining];
+    afterRemaining[drawn]--;
+    const direct=evaluateChangchunWin(player,afterDraw,drawn,"自摸",
+      {forTenpai:true,disableBao:true}).legal;
+    let best=direct?7:0;
+    const discarded=new Set();
+    for(let index=0;index<afterDraw.length;index++) {
+      const tile=afterDraw[index];
+      if(discarded.has(tile)) continue;
+      discarded.add(tile);
+      const after=afterDraw.filter((_,position)=>position!==index);
+      if(!hasYaoJiu(after,shapeMelds(player))) continue;
+      const waits=getLegalWaits(player,after);
+      if(!waits.length) continue;
+      const live=hardWaitValue(player,after,waits,afterRemaining);
+      best=Math.max(best,Math.log1p(live));
+    }
+    weighted+=remaining[drawn]*best;weight+=remaining[drawn];
+  }
+  return weight?weighted/weight:0;
+}
+
+function hardPassRouteValue(player,hand,remaining,withChance=false) {
+  if(hand.length%3!==1) return withChance?{value:0,readyChance:0}:0;
+  const total=remaining.reduce((sum,count)=>sum+count,0);
+  if(!total) return withChance?{value:0,readyChance:0}:0;
+  let expected=0,readyCopies=0;
+  const melds=shapeMelds(player);
+  // Passing a claim gives this player the next normal draw. Compare that
+  // standing route with claiming now; use every publicly possible draw so a
+  // rare high-fan wait is not missed by the stratified rollout samples.
+  for(let drawn=0;drawn<34;drawn++) {
+    const copies=remaining[drawn];
+    if(!copies) continue;
+    const afterDraw=[...hand,drawn],afterRemaining=[...remaining];
+    afterRemaining[drawn]--;
+    let best=0;
+    const discarded=new Set();
+    for(let index=0;index<afterDraw.length;index++) {
+      const tile=afterDraw[index];
+      if(discarded.has(tile)) continue;
+      discarded.add(tile);
+      const after=afterDraw.filter((_,position)=>position!==index);
+      if(!hasYaoJiu(after,melds)) continue;
+      const waits=getLegalWaits(player,after);
+      if(waits.length) best=Math.max(best,hardWaitValue(player,after,waits,afterRemaining));
+    }
+    if(best>0) readyCopies+=copies;
+    expected+=copies*Math.log1p(best);
+  }
+  return withChance?{value:expected/total,readyChance:readyCopies/total}:expected/total;
+}
+
+function hardBaoSafetyUrgency(player,hand,remaining,readyChance,claimTile) {
+  if(state.baopaiRevealed[player]||state.wall.length<5) return 0;
+  const dangers=[...new Set(hand)].map(tile=>hardDiscardDanger(player,tile,remaining))
+    .sort((a,b)=>a-b);
+  if(!dangers.length) return 0;
+  const ordinary=dangers[Math.floor(dangers.length/2)],safest=dangers[0];
+  const claimRisk=hardDiscardDanger(player,claimTile,remaining);
+  const safeClaim=Math.max(0,1-claimRisk/Math.max(.5,ordinary));
+  // A safe discard that reports ting reaches the next turn's Bao reveal with
+  // no intervening discard. Passing may fail to reach ting and keep Bao-pao
+  // liability alive; estimate part of that later exposure from public risk.
+  // The fraction avoids charging a full extra discard on every failed draw.
+  return (1-readyChance)*Math.max(0,ordinary-safest)*safeClaim*.45;
+}
+
 function hardRolloutDiscard(player,plan,remaining) {
   if(plan.ranked.length<2||!state.wall.length) return plan.best;
-  const choices=[...plan.ranked].sort((a,b)=>b.value-a.value).slice(0,4);
+  const choices=[...plan.ranked].sort((a,b)=>b.value-a.value).slice(0,3);
   if(plan.bestTing) {
     const ready=plan.ranked.find(entry=>entry.index===plan.bestTing.candidate.index);
     if(ready&&!choices.includes(ready)) choices.push(ready);
@@ -1141,7 +1290,8 @@ function hardRolloutDiscard(player,plan,remaining) {
   let best=null,bestValue=-Infinity;
   for(const entry of choices) {
     const future=hardRolloutValue(player,entry.after,remaining,samples);
-    const value=.65*entry.value+.35*future;
+    const route=hardLegalRouteValue(player,entry.after,remaining);
+    const value=.65*entry.value+.35*future+route*.8*hardStrategicWeights(player).attack;
     if(value>bestValue) {best=entry;bestValue=value;}
   }
   return best||plan.best;
@@ -1159,7 +1309,10 @@ function hardChooseExposure(player,actions,baseline,remaining) {
     }
     // Each listed point is paid by three opponents; convert net points into
     // hand-shape units while still allowing a damaged ready hand to veto it.
-    const value=trial+action.points*1.5;
+    const eggPayment=action.points*3;
+    const robbed=action.kind==="added"||action.kind==="supplement"
+      ?hardDiscardDanger(player,action.tile,remaining)*.35:0;
+    const value=trial+eggPayment*.5-robbed;
     if(value>bestValue) {bestAction=action;bestValue=value;}
   }
   return bestAction;
@@ -1222,11 +1375,33 @@ function aiClaimGain(option,discardedTile) {
   return afterClaim-before-1.5-openingCost;
 }
 
-function hardClaimGain(option,discardedTile) {
+function hardClaimProbability(gain) {
+  if(!Number.isFinite(gain)) return 0;
+  // A one-point advantage is a 50/50 claim. Small negative gains remain
+  // possible, while very harmful claims are vanishingly rare.
+  return Math.min(.98,1/(1+Math.exp(-(gain-1)/1.2)));
+}
+
+function hardShouldClaim(gain,roll=null) {
+  const probability=hardClaimProbability(gain);
+  return probability>0&&(roll===null?Math.random():roll)<probability;
+}
+
+function hardClaimGain(option,discardedTile,passRouteCache=null) {
   if(!["chi","peng","gang"].includes(option.type)) return -Infinity;
   const player=option.p,hand=state.hands[player],beforeMelds=shapeMelds(player);
   const remaining=hardPublicRemaining(player);
   const before=hardProjectedValue(player,hand,remaining);
+  let passRoute=0,passReadyChance=0;
+  if(option.type!=="gang") {
+    let passInfo=passRouteCache?.get(player);
+    if(passInfo===undefined) {
+      passInfo=hardPassRouteValue(player,hand,remaining,true);
+      passRouteCache?.set(player,passInfo);
+    }
+    passRoute=typeof passInfo==="number"?passInfo:passInfo.value;
+    passReadyChance=typeof passInfo==="number"?0:passInfo.readyChance;
+  }
   const needed=option.type==="chi"?[...option.pattern]:Array(option.type==="gang"?4:3).fill(discardedTile);
   needed.splice(needed.indexOf(discardedTile),1);
   const trialHand=[...hand];
@@ -1252,8 +1427,15 @@ function hardClaimGain(option,discardedTile) {
         +.2*(future-projected);
     }
     const plan=hardDiscardPlan(player,remaining),after=plan.best.after;
-    const future=hardRolloutValue(player,after,remaining,samples);
-    let gain=plan.best.value-before-1.5+.2*(future-plan.best.value);
+    // After a safe reporting discard, Bao is viewed before the next draw.
+    // Keep the rollout's shape forecast, but later simulated discards must
+    // carry ordinary point-pao risk rather than the pre-view Bao-pao liability.
+    const future=hardRolloutValue(player,after,remaining,samples,
+      plan.best.tingValue>0?true:null);
+    let gain=plan.best.value-before-1.5+.2*(future-plan.best.value)
+      -3*passRoute;
+    if(plan.best.tingValue>0) gain+=hardBaoSafetyUrgency(player,hand,remaining,
+      passReadyChance,plan.best.tile);
     const afterMelds=shapeMelds(player);
     if(isStanding(beforeMelds)&&!isStanding(afterMelds)) {
       const standingGain=computeScore({winner:player,method:"自摸",
@@ -1439,12 +1621,29 @@ function canWinWithMiddleSequence(hand, openMelds, tile) {
   return false;
 }
 
+function canWinWithEdgeSequence(hand, openMelds, tile) {
+  if(!isSuit(tile)||![2,6].includes(tile%9)) return false;
+  const sequence=tile%9===2?[tile-2,tile-1,tile]:[tile,tile+1,tile+2];
+  const need=4-openMelds,counts=Array(34).fill(0);
+  hand.forEach(id=>counts[id]++);
+  if(need<1||sequence.some(id=>!counts[id])) return false;
+  sequence.forEach(id=>counts[id]--);
+  for(let pair=0;pair<34;pair++) if(counts[pair]>=2) {
+    counts[pair]-=2;
+    if(canFormMelds(counts,need-1)) { counts[pair]+=2; return true; }
+    counts[pair]+=2;
+  }
+  return false;
+}
+
 function isJiaHu(hand, melds=[], winTile) {
   const before=[...tileInHandWithoutWin(hand,winTile),...meldTiles(melds)];
   // 断幺九时只能用幺九和牌，此情形按夹胡计算。
   if(!before.some(isTerminalOrHonor)&&isTerminalOrHonor(winTile)) return true;
   const openMelds=melds.length;
-  return canWinByCompletingPair(hand,openMelds,winTile)||canWinWithMiddleSequence(hand,openMelds,winTile);
+  return canWinByCompletingPair(hand,openMelds,winTile)
+    ||canWinWithMiddleSequence(hand,openMelds,winTile)
+    ||canWinWithEdgeSequence(hand,openMelds,winTile);
 }
 
 function allTripletPartition(hand, melds=[]) {
@@ -1507,7 +1706,9 @@ function hasTripletMeld(counts,need) {
   const tile=counts.findIndex(count=>count>0); if(tile<0) return false;
   if(counts[tile]>=3) {
     counts[tile]-=3;
-    if(need===1||hasTripletMeld(counts,need-1)) { counts[tile]+=3; return true; }
+    // Once this group supplies the required triplet, the other groups may all
+    // be sequences. Requiring a later triplet rejected valid early-triplet wins.
+    if(canFormMelds(counts,need-1)) { counts[tile]+=3; return true; }
     counts[tile]+=3;
   }
   if(tile<27&&tile%9<=6&&counts[tile+1]&&counts[tile+2]) {
@@ -1920,6 +2121,12 @@ function renderResultScore(score,kongScore=computeKongScore()) {
   $("scoreTable").innerHTML=`<div class="score-title">${score?`胡牌总番数 N = ${score.N}`:"荒庄"} · 蛋杠分另计</div><div class="score-head"><span>玩家</span><span>胡分</span><span>蛋杠分</span><span>总计</span></div>${rows}`;
 }
 
+function renderResultBao() {
+  $("resultBao").innerHTML=state.baopai===null
+    ? '<span class="result-bao-empty">本局未打宝</span>'
+    : `<span class="result-bao-label">本局宝牌</span>${tileHTML(state.baopai,{small:true})}<span class="result-bao-name">${TILE_NAMES[state.baopai]}</span>`;
+}
+
 function resultEggTilesHTML(tiles) {
   const counts=new Map();
   tiles.forEach(tile=>counts.set(tile,(counts.get(tile)||0)+1));
@@ -1937,7 +2144,7 @@ function resultGroupHTML(label,tiles,kind) {
   return `<span class="result-meld result-${kind}" title="${label}" aria-label="${label}"><span class="result-group-label">${label}</span><span class="result-group-tiles">${cards}</span></span>`;
 }
 
-function renderResultHands(winner=null,winningHand=null) {
+function renderResultHands(winner=null,winningHand=null,winTile=null) {
   const order=winner===null?[0,1,2,3]:[winner,...[0,1,2,3].filter(player=>player!==winner)];
   $("winningHand").innerHTML=order.map(player=>{
     const eggs=state.eggs[player].filter(egg=>!egg.standardGang)
@@ -1951,7 +2158,10 @@ function renderResultHands(winner=null,winningHand=null) {
     const calls=state.melds[player].filter(meld=>meld.type!=="gang")
       .map(meld=>resultGroupHTML({chi:"吃",peng:"碰"}[meld.type]||"副露",meld.tiles,"call")).join("");
     const concealed=(player===winner&&winningHand?winningHand:state.hands[player]).slice().sort((a,b)=>a-b);
-    const cards=`<span class="result-concealed" aria-label="手牌">${concealed.map(tile=>tileHTML(tile,{small:true})).join("")}</span>`;
+    const winIndex=player===winner&&winTile!==null?concealed.lastIndexOf(winTile):-1;
+    const cards=`<span class="result-concealed" aria-label="手牌">${concealed.map((tile,index)=>index===winIndex
+      ?`<span class="result-win-tile" title="胡牌张：${TILE_NAMES[tile]}" aria-label="胡牌张：${TILE_NAMES[tile]}">${tileHTML(tile,{small:true})}<span class="result-win-badge">胡</span></span>`
+      :tileHTML(tile,{small:true})).join("")}</span>`;
     return `<div class="result-player-row${player===winner?" winner":""}" data-player="${player}"><div class="result-player-info"><strong>${NAMES[player]}${player===winner?"胡牌":""}</strong><span>${player===state.dealer?"庄家 · ":""}${seatWind(player)}家</span></div><div class="result-player-tiles">${eggs}${gangs}${calls}${cards}</div></div>`;
   }).join("");
 }
@@ -1981,19 +2191,20 @@ function finishWin(player,method,hand,forcedWinTile=null) {
   $("resultShape").textContent=`胡牌牌型：${pattern.name} · ${sevenPairs?"门清":pattern.standing?"站立":"开门"}`;
   const extras=[`牌型：${pattern.name}`,sevenPairs?"门清（不另加站立番）":pattern.standing?"站立":"开门",`基础 ${pattern.baseFans}番`,selfDraw?"自摸 +1":"",player===state.dealer?"庄家胡 +1":"",!selfDraw&&loser===state.dealer?"庄家点炮 +1":"",duiBao?"对宝 +2":"",moBao?"摸宝 +1":""].filter(Boolean);
   $("patternList").innerHTML=extras.map(extra=>`<span>${extra}</span>`).join("");
+  renderResultBao();
   renderResultScore(score,kongScore);
   const baoPaoNotice=$("baoPaoNotice");
   baoPaoNotice.hidden=!baoPao;
   baoPaoNotice.textContent=baoPao?`${NAMES[loser]}未看宝，包炮，承担全部 ${score.winnerGain} 分。`:"";
   // Scoring may replace a drawn treasure virtually; the result must show the
   // physical tile that was actually drawn.
-  renderResultHands(player,hand);
+  renderResultHands(player,hand,nominalWinTile);
   publishOnlineResult();
   const round=state.round;
   later(()=>{if(state.round===round&&state.phase==="gameover") {const dialog=$("resultDialog");dialog.showModal();dialog.scrollTop=0;}},400);
 }
 
-function finishDraw(){clearGameTimers();state.phase="gameover";setActions();setStatus("牌墙已空，本局荒庄");const kongScore=computeKongScore();state.scores=state.scores.map((score,index)=>score+kongScore.changes[index]);finishMatchHand();renderScoreboard();$("resultTitle").textContent="本局荒庄";$("resultDetail").textContent="牌墙摸完，无人胡牌；蛋杠分照常结算";$("resultShape").textContent="";$("patternList").innerHTML="";renderResultScore(null,kongScore);$("baoPaoNotice").hidden=true;renderResultHands();playSound("drawgame");render();publishOnlineResult();const round=state.round;later(()=>{if(state.round===round&&state.phase==="gameover") {const dialog=$("resultDialog");dialog.showModal();dialog.scrollTop=0;}},300);}
+function finishDraw(){clearGameTimers();state.phase="gameover";setActions();setStatus("牌墙已空，本局荒庄");const kongScore=computeKongScore();state.scores=state.scores.map((score,index)=>score+kongScore.changes[index]);finishMatchHand();renderScoreboard();$("resultTitle").textContent="本局荒庄";$("resultDetail").textContent="牌墙摸完，无人胡牌；蛋杠分照常结算";$("resultShape").textContent="";$("patternList").innerHTML="";renderResultBao();renderResultScore(null,kongScore);$("baoPaoNotice").hidden=true;renderResultHands();playSound("drawgame");render();publishOnlineResult();const round=state.round;later(()=>{if(state.round===round&&state.phase==="gameover") {const dialog=$("resultDialog");dialog.showModal();dialog.scrollTop=0;}},300);}
 
 function onlineSnapshotFor(seat) {
   if(!isOnlineHost()||seat<1||seat>3) return null;
@@ -2067,6 +2278,7 @@ function onlineResultPayload() {
   return {
     title:$("resultTitle").textContent,detail:$("resultDetail").textContent,
     shape:$("resultShape").textContent,patterns:$("patternList").innerHTML,
+    bao:$("resultBao").innerHTML,
     score:$("scoreTable").innerHTML,notice:$("baoPaoNotice").textContent,
     noticeHidden:$("baoPaoNotice").hidden,hands:$("winningHand").innerHTML,
     finish:$("matchFinish").innerHTML,finishHidden:$("matchFinish").hidden
@@ -2101,6 +2313,7 @@ function applyOnlineResult(result) {
   if(!isOnlineGuest()||!result) return;
   $("resultTitle").textContent=result.title;$("resultDetail").textContent=result.detail;
   $("resultShape").textContent=result.shape;$("patternList").innerHTML=safeOnlineResultMarkup(result.patterns);
+  $("resultBao").innerHTML=safeOnlineResultMarkup(result.bao);
   $("scoreTable").innerHTML=safeOnlineResultMarkup(result.score);$("baoPaoNotice").textContent=result.notice;
   $("baoPaoNotice").hidden=result.noticeHidden;$("winningHand").innerHTML=safeOnlineResultMarkup(result.hands);
   $("matchFinish").innerHTML=safeOnlineResultMarkup(result.finish);$("matchFinish").hidden=result.finishHidden;
