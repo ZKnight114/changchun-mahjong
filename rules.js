@@ -4,7 +4,7 @@
   "use strict";
   const deepFreeze=value=>{Object.values(value).forEach(item=>{if(item&&typeof item==="object")deepFreeze(item);});return Object.freeze(value);};
   const config=deepFreeze({
-    version:"changchun-20260930-1",tileKinds:34,copies:4,circles:4,
+    version:"changchun-20261008-1",tileKinds:34,copies:4,circles:4,
     patterns:{ping:{name:"平胡",fans:0},jia:{name:"夹胡",fans:1},piao:{name:"飘胡",fans:2},
       piaoding:{name:"飘顶",fans:3},qidui:{name:"七对",fans:3,sevenPairs:true},haoqidui:{name:"豪华七对",fans:4,sevenPairs:true}},
     eggs:{threeWinds:{name:"风蛋",required:[27,28,29,30],points:1},joy:{name:"喜蛋",required:[31,32,33],points:1},
@@ -218,7 +218,9 @@ function coreWin({hand,winTile,melds=[],eggs=[],ting=null},options={}) {
   if(!hasYaoJiu(hand,melds))return {legal:false};
   if(standard&&!hasATriplet(hand,melds)&&!hasDragon(hand,melds)&&!hasKong(melds)&&eggs.length===0)return {legal:false};
   if(!options.ignoreTing&&!options.forTenpai){
-    if(!ting&&!silentYaoJiu&&!options.allowUnreportedWin)return {legal:false};
+    // Reporting locks the hand and grants treasure access; it is not a
+    // prerequisite for an ordinary self-drawn win while changing the hand.
+    if(!ting&&!silentYaoJiu&&!isSelfDraw(options.method)&&!options.allowUnreportedWin)return {legal:false};
     if(ting&&!ting.waitTiles.includes(winTile))return {legal:false};
   }
   return {legal:true,hand,winTile,silentYaoJiu,moBao:false};
