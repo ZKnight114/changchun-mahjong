@@ -1,6 +1,6 @@
 /* Same-origin cache for the GitHub Pages/web build. Shell files refresh during
    install; keep the asset cache when only application code and styles change. */
-const CACHE_NAME="changchun-mahjong-shell-20261008-1";
+const CACHE_NAME="changchun-mahjong-shell-20261008-6";
 const ASSET_CACHE="changchun-mahjong-assets-v1";
 const CACHE_PREFIX="changchun-mahjong-";
 const ROOT=new URL(self.registration.scope);

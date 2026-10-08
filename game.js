@@ -66,7 +66,7 @@ const state = {
   // 长春麻将状态。听牌信息只保存普通数组，既方便渲染，也避免 Set 在
   // 调试序列化时丢失内容。
   ting: [null,null,null,null], lastDrawn: [null,null,null,null],
-  baopai: null, baopaiRevealed: [false,false,false,false], baopaiCandidates: [], baopaiPending: false,
+  baopai: null, baopaiWallIndex: null, baopaiRevealed: [false,false,false,false], baopaiCandidates: [], baopaiPending: false,
   eggs: [[],[],[],[]], eggDrawn: [[],[],[],[]],
   scores: [0,0,0,0], pendingDraw: null,
   firstDrawDone: [false,false,false,false], firstDiscardDone: [false,false,false,false],
@@ -89,6 +89,7 @@ function inputPermitFor(seat) {
 }
 function guestInput(kind,index,version=null) {
   if(!isOnlineGuest()||state.onlinePaused||!guestInputToken)return null;
+  if(kind==="discard"&&mustWinWithBao(0))return null;
   return {kind,index,version,protocol:ONLINE_PROTOCOL,rulesVersion:RULES.version,round:state.round,
     inputToken:guestInputToken,...(kind==="discard"?{tile:state.hands[0][index]}:{})};
 }
@@ -96,10 +97,12 @@ let onlineClaim=null;
 let localActions=[];
 let pendingRob=null;
 let restoredContinuation=null;
+let soloMatchActive=false,soloSaveQueued=false,soloSaveErrorShown=false;
+const SOLO_SAVE_KEY="mahjong-solo-match-v1";
 const gameTimerTasks=new Map();
 const isOnlineHost=()=>state.onlineRole==="host";
 const isOnlineGuest=()=>state.onlineRole==="guest";
-function publishOnline() { if(isOnlineHost()) onlineController?.publish(); }
+function publishOnline() { if(isOnlineHost()) onlineController?.publish(); else queueSoloSave(); }
 function clearOnlineOffers() { onlineOffers.clear(); publishOnline(); }
 function offerActions(player,actions) {
   if(!isOnlineHost()||player===0) { setActions(actions); return; }
@@ -208,6 +211,7 @@ function setGuestPaused() {
 
 function queueActionCue(player,type,commit,recovery=null) {
   if(state.actionCue||state.onlinePaused) return false;
+  if(type!=="hu"&&mustWinWithBao(player))return false;
   onlineOffers.clear();
   const labels={chi:"吃",peng:"碰",gang:"杠",hu:"胡",egg:"蛋",ting:"听",bao:"宝"};
   const previousPhase=state.phase, round=state.round;
@@ -263,10 +267,10 @@ function tileHTML(id, opts={}) {
   return `<span class="tile${small}${opts.latest?" latest":""}${related}" data-tile="${id}" title="${TILE_NAMES[id]}"><img src="${tileImagePath(id)}" data-tile-image="${id}" alt="${TILE_NAMES[id]}" draggable="false"></span>`;
 }
 
-function tileButtonHTML(id, index, drawn=false) {
-  const disabled=state.onlinePaused||state.phase!=="discard"||state.current!==0||state.hands[0].length%3!==2;
+function tileButtonHTML(id, index, drawn=false, winOnly=false) {
+  const disabled=winOnly||state.onlinePaused||state.phase!=="discard"||state.current!==0||state.hands[0].length%3!==2;
   const classes=`tile${drawn?" drawn":""}${disabled?" disabled":""}`;
-  const hint=disabled?"当前不是你的回合，请等待":"点击选中，再点一次打出";
+  const hint=winOnly?"已摸到宝牌，本回合必须胡牌":disabled?"当前不是你的回合，请等待":"点击选中，再点一次打出";
   return `<button class="${classes}" data-tile="${id}" data-index="${index}" title="${hint}${disabled?"":TILE_NAMES[id]}" aria-label="${hint}${disabled?"":TILE_NAMES[id]}" ${disabled?"disabled":""}><img src="${tileImagePath(id)}" data-tile-image="${id}" alt="${TILE_NAMES[id]}" draggable="false"></button>`;
 }
 
@@ -310,7 +314,7 @@ function startGame() {
   for(let p=0;p<4;p++) {const banner=$(`actionCue${p}`);if(banner) banner.classList.remove("show","preview-hidden");}
   $("baoRevealOverlay")?.classList.remove("show");
   if($("baoRevealCard")) $("baoRevealCard").innerHTML="";
-  state.ting=[null,null,null,null]; state.lastDrawn=[null,null,null,null]; state.baopai=null;
+  state.ting=[null,null,null,null]; state.lastDrawn=[null,null,null,null]; state.baopai=null; state.baopaiWallIndex=null;
   state.baopaiRevealed=[false,false,false,false]; state.baopaiCandidates=[]; state.baopaiPending=false;
   state.eggs=[[],[],[],[]]; state.eggDrawn=[[],[],[],[]]; state.pendingDraw=null;
   state.firstDrawDone=[false,false,false,false]; state.firstDiscardDone=[false,false,false,false];
@@ -322,11 +326,11 @@ function startGame() {
   // Traditional packet order: four tiles at a time for three rounds, then one each.
   for (let packet=0; packet<3; packet++) for (let offset=0; offset<4; offset++) {
     const p=(state.dealer+offset)%4;
-    for(let n=0;n<4;n++) state.hands[p].push(state.wall.shift());
+    for(let n=0;n<4;n++) state.hands[p].push(takeWallTile(0));
   }
-  for (let offset=0; offset<4; offset++) state.hands[(state.dealer+offset)%4].push(state.wall.shift());
+  for (let offset=0; offset<4; offset++) state.hands[(state.dealer+offset)%4].push(takeWallTile(0));
   state.hands.forEach(sortHand);
-  const dealerDraw=state.wall.shift();
+  const dealerDraw=takeWallTile(0);
   state.hands[state.dealer].push(dealerDraw);
   state.lastDrawn[state.dealer]=dealerDraw;
   state.firstDrawDone[state.dealer]=true;
@@ -447,9 +451,10 @@ function renderPlayer(p) {
   slots.melds.querySelectorAll(".tile[data-tile]").forEach(tile=>tile.classList.toggle("related",+tile.dataset.tile===state.selectedTile));
 
   if(p===0) {
+    const winOnly=mustWinWithBao(0);
     const regular=state.hands[0].map((t,i)=>({t,i})).filter(x=>x.i!==state.drawnIndex).sort((a,b)=>a.t-b.t);
-    const drawn=state.drawnIndex!==null&&state.hands[0][state.drawnIndex]!==undefined?tileButtonHTML(state.hands[0][state.drawnIndex],state.drawnIndex,true):"";
-    const handMarkup=`<div class="hand-row">${regular.map(x=>tileButtonHTML(x.t,x.i)).join("")}${drawn}</div>`;
+    const drawn=state.drawnIndex!==null&&state.hands[0][state.drawnIndex]!==undefined?tileButtonHTML(state.hands[0][state.drawnIndex],state.drawnIndex,true,winOnly):"";
+    const handMarkup=`<div class="hand-row">${regular.map(x=>tileButtonHTML(x.t,x.i,false,winOnly)).join("")}${drawn}</div>`;
     if(slots.handMarkup!==handMarkup) {
       slots.hand.innerHTML=handMarkup;
       slots.handMarkup=handMarkup;
@@ -494,6 +499,7 @@ function selectTile(tile) {
 
 function handleHandClick(tile,index) {
   if(state.onlinePaused||state.phase!=="discard"||state.current!==0||state.hands[0].length%3!==2)return;
+  if(mustWinWithBao(0))return;
   if(state.selectedIndex===index)return humanDiscard(index);
   state.selectedTile=tile;state.selectedIndex=index;
   refreshTileHighlights();
@@ -503,7 +509,7 @@ function handleHandClick(tile,index) {
 }
 
 function refreshTileHighlights() {
-  const canDiscard=state.phase==="discard"&&state.current===0&&state.hands[0].length%3===2;
+  const canDiscard=state.phase==="discard"&&state.current===0&&state.hands[0].length%3===2&&!mustWinWithBao(0);
   const tenpaiTiles=canDiscard?getTenpaiTiles():new Set();
   document.querySelectorAll(".tile[data-tile]").forEach(el=>{
     const same=+el.dataset.tile===state.selectedTile;
@@ -548,6 +554,7 @@ function updatePlayerActions(player) {
   const canDiscard=state.hands[player].length%3===2;
   const analysis=canDiscard?evaluateChangchunWin(player,state.hands[player],state.lastDrawn[player],"自摸"):{legal:false};
   if(analysis.legal) actions.push({label:"胡",kind:"hu",run:()=>cueWin(player,"自摸",state.hands[player])});
+  if(mustWinWithBao(player,analysis))return offerActions(player,actions);
   const reported=state.ting[player];
   if(!reported) {
     eggActions(player).forEach(egg=>actions.push({label:`下${egg.label}：`,tiles:[...egg.tiles],kind:"egg",run:()=>queueActionCue(player,"egg",()=>executeEgg(player,egg.type,egg.tiles),
@@ -567,6 +574,7 @@ function updatePlayerActions(player) {
 }
 
 function humanDiscard(index,reporting=false) {
+  if(mustWinWithBao(0)){setStatus("已摸到宝牌，本回合只能胡牌");return false;}
   if(isOnlineGuest()) { onlineController?.sendDiscard(index); return; }
   if(state.onlinePaused||state.phase!=="discard" || state.current!==0) return;
   if(state.hands[0].length%3!==2) { setStatus("大蛋起手不补牌，本回合请先结束下蛋"); return; }
@@ -581,6 +589,7 @@ function humanDiscard(index,reporting=false) {
 
 function remoteDiscard(player,index) {
   if(state.onlinePaused||!isOnlineHost()||player===0||state.phase!=="discard"||state.current!==player) return false;
+  if(mustWinWithBao(player))return false;
   const hand=state.hands[player];
   if(hand.length%3!==2||!Number.isInteger(index)||index<0||index>=hand.length) return false;
   if(state.ting[player]&&(state.lastDrawn[player]===null||index!==hand.length-1)) return false;
@@ -593,6 +602,7 @@ function remoteDiscard(player,index) {
 }
 
 function performDiscard(player,tile) {
+  if(mustWinWithBao(player))return false;
   onlineOffers.clear();
   state.firstDiscardDone[player]=true;
   state.phase="claim"; state.lastDiscard={player,tile}; state.discards.push({player,tile});
@@ -788,13 +798,13 @@ function resolveNormalClaims(human,ai,discarder,tile) {
   if(aiBest) shown=shown.filter(o=>o.type==="hu"||o.priority>aiBest.priority || (o.priority===aiBest.priority&&o.step<aiBest.step));
   // Avoid duplicate peng when gang is available; player may still choose the gang.
   const onPass=()=>aiBest?cueClaim(aiBest,discarder,tile):advanceAfterDiscard(discarder);
-  if(shown.length) return promptClaims(shown,onPass);
+  if(shown.length) return promptClaims(shown,onPass,{aiBest});
   if(aiBest) return cueClaim(aiBest,discarder,tile);
   advanceAfterDiscard(discarder);
 }
 
 function promptClaims(options,onPass,context={}) {
-  state.pending={options,onPass};
+  state.pending={options,onPass,context};
   const labels={hu:"胡",gang:"杠",peng:"碰",chi:"吃"};
   const actions=options.map(o=>({label:o.type==="chi"?`吃 ${o.pattern.map(shortName).join("")}`:labels[o.type],kind:o.type==="hu"?"hu":"",run:()=>{
     const discarded=state.lastDiscard, next=state.pending?.onPass;
@@ -863,6 +873,7 @@ function finishEggTurn(player) {
 
 function drawTile(player,kongReplacement) {
   if(state.onlinePaused)return false;
+  if(mustWinWithBao(player))return false;
   if(!state.wall.length) return finishDraw();
   if(state.baopaiPending&&state.baopai===null) {
     determineBaopai();
@@ -879,7 +890,7 @@ function drawTile(player,kongReplacement) {
     render();
     return player===0||isOnlineHost()?undefined:cueRevealBaopai(player);
   }
-  const tile=kongReplacement?state.wall.pop():state.wall.shift();
+  const tile=takeWallTile(kongReplacement?state.wall.length-1:0);
   state.hands[player].push(tile);
   state.firstDrawDone[player]=true;
   if(state.ting[player]) state.baoViewReady[player]=true;
@@ -890,8 +901,9 @@ function drawTile(player,kongReplacement) {
   // Set the actionable state before rendering. Otherwise human tiles are rendered
   // disabled during "drawing" and remain disabled until the next full render.
   state.phase="discard";
-  setStatus(`${NAMES[player]}${kongReplacement?"杠后补牌":"摸牌"}`); playSound("draw"); render();
-  if(evaluateChangchunWin(player,state.hands[player],tile,"自摸").legal) {
+  const analysis=evaluateChangchunWin(player,state.hands[player],tile,"自摸");
+  setStatus(mustWinWithBao(player,analysis)?`${NAMES[player]}摸到宝牌，只能胡牌`:`${NAMES[player]}${kongReplacement?"杠后补牌":"摸牌"}`); playSound("draw"); render();
+  if(analysis.legal) {
     if(player===0){updateActions();return;}
     if(isOnlineHost()){updatePlayerActions(player);return;}
     const round=state.round, winningHand=[...state.hands[player]];
@@ -925,32 +937,36 @@ function runAIFor(p,difficulty=state.aiDifficulty) {
       const added=addedKongs(p).find(tile=>canKeepTingAfterKong(p,tile,"added"));
       if(added!==undefined) return selfKong(added,true);
       const concealed=concealedKongs(p).find(tile=>canKeepTingAfterKong(p,tile,"concealed"));
-      if(concealed!==undefined) return queueActionCue(p,"gang",()=>selfKong(concealed,false));
+      if(concealed!==undefined) return queueActionCue(p,"gang",()=>selfKong(concealed,false),{kind:"concealed",player:p,tile:concealed});
       const drawnIndex=state.hands[p].lastIndexOf(state.lastDrawn[p]);
       const tile=state.hands[p].splice(drawnIndex>=0?drawnIndex:state.hands[p].length-1,1)[0];
       state.lastDrawn[p]=null;
       return performDiscard(p,tile);
     }
     const egg=eggActions(p)[0];
-    if(egg&&Math.random()<.18) return queueActionCue(p,"egg",()=>executeEgg(p,egg.type,egg.tiles));
+    if(egg&&Math.random()<.18) return queueActionCue(p,"egg",()=>executeEgg(p,egg.type,egg.tiles),
+      {kind:"startEgg",player:p,type:egg.type,tiles:[...egg.tiles]});
     const supplement=eggSupplementOptions(p)[0];
     if(supplement&&Math.random()<.35) return beginEggSupplement(p,supplement.tile,supplement.eggIndex);
     if(state.hands[p].length%3!==2) return finishEggTurn(p);
     const kongs=canDrawReplacement()?concealedKongs(p):[];
-    if(kongs.length && Math.random()<.7) return queueActionCue(p,"gang",()=>selfKong(kongs[0],false));
+    if(kongs.length && Math.random()<.7) return queueActionCue(p,"gang",()=>selfKong(kongs[0],false),
+      {kind:"concealed",player:p,tile:kongs[0]});
     let index=chooseAIDiscard(state.hands[p],p);
     const tingCandidates=getTingCandidates(p).filter(candidate=>candidate.reportAllowed);
     const tingCandidate=tingCandidates.find(candidate=>candidate.index===index)
       || tingCandidates.sort((a,b)=>b.waitTiles.length-a.waitTiles.length)[0];
     if(tingCandidate&&Math.random()<.72) {
-      const tingIndex=tingCandidate.index;
-      return queueActionCue(p,"ting",()=>{
-        declareTing(p,tingCandidate);
-        const tile=state.hands[p].splice(tingIndex,1)[0];
-        performDiscard(p,tile);
-      });
+      return queueActionCue(p,"ting",()=>completeAIReportTing(p,tingCandidate),
+        {kind:"aiReportTing",player:p,candidate:tingCandidate});
     }
     const tile=state.hands[p].splice(index,1)[0]; performDiscard(p,tile);
+}
+
+function completeAIReportTing(player,candidate) {
+  declareTing(player,candidate);
+  const tile=state.hands[player].splice(candidate.index,1)[0];
+  performDiscard(player,tile);
 }
 
 function aiConcealedShapeScore(hand) {
@@ -1414,20 +1430,19 @@ function runHardAI(player) {
   if(selected.tingValue>0&&selected.candidate?.reportAllowed
     &&selected.value>=plan.best.value-1.5) {
     const {candidate}=selected;
-    return queueActionCue(player,"ting",()=>{
-      declareTing(player,candidate);
-      const tile=hand.splice(candidate.index,1)[0];
-      performDiscard(player,tile);
-    });
+    return queueActionCue(player,"ting",()=>completeAIReportTing(player,candidate),
+      {kind:"aiReportTing",player,candidate});
   }
   const tile=hand.splice(selected.index,1)[0];
   return performDiscard(player,tile);
 }
 
 function hardExecuteExposure(player,action) {
-  if(action.kind==="startEgg") return queueActionCue(player,"egg",()=>executeEgg(player,action.egg.type,action.egg.tiles));
+  if(action.kind==="startEgg") return queueActionCue(player,"egg",()=>executeEgg(player,action.egg.type,action.egg.tiles),
+    {kind:"startEgg",player,type:action.egg.type,tiles:[...action.egg.tiles]});
   if(action.kind==="supplement") return beginEggSupplement(player,action.tile,action.eggIndex);
-  if(action.kind==="concealed") return queueActionCue(player,"gang",()=>selfKong(action.tile,false));
+  if(action.kind==="concealed") return queueActionCue(player,"gang",()=>selfKong(action.tile,false),
+    {kind:"concealed",player,tile:action.tile});
   if(action.kind==="added") return selfKong(action.tile,true);
 }
 
@@ -1577,6 +1592,7 @@ function canKeepTingAfterKong(player,tile,kind,source="drawn",eggIndex=null) {
 
 function selfKong(tile,added) {
   const p=state.current;if(state.onlinePaused||state.phase!=="discard"||!canDrawReplacement())return false;
+  if(mustWinWithBao(p))return false;
   if(added?!addedKongs(p).includes(tile):!concealedKongs(p).includes(tile)) return false;
   if(!canKeepTingAfterKong(p,tile,added?"added":"concealed")) { setStatus("杠后会改变听牌，不能开杠"); return false; }
   // 补杠先给其余三家一次抢胡机会；没有人胡才真正落杠。
@@ -1687,6 +1703,17 @@ function evaluateChangchunWin(player, hand, winTile, method, options={}) {
   return best||{legal:false};
 }
 
+// Derived from the real hand rather than a saved UI flag. It remains enforced
+// after refresh/reconnect, and a host rejects a guest's attempted discard too.
+// Dui-bao before drawing already goes straight into cueWin in revealBaopai.
+function mustWinWithBao(player,analysis=null,restoring=false) {
+  if(!RULES.bao.mustWin)return false;
+  const actionable=restoring?["discard","claim","actionCue"].includes(state.phase):state.phase==="discard";
+  if(!actionable||state.current!==player||!state.ting[player]||!state.baopaiRevealed[player]
+    ||state.baopai===null||state.lastDrawn[player]!==state.baopai||state.hands[player].length%3!==2)return false;
+  return (analysis||evaluateChangchunWin(player,state.hands[player],state.lastDrawn[player],"自摸")).legal;
+}
+
 function canChangchunWin(player, hand, winTile, method, options={}) {
   return evaluateChangchunWin(player,hand,winTile,method,options).legal;
 }
@@ -1696,7 +1723,7 @@ function getLegalWaits(player, hand) {
   const visible=[...hand,...meldTiles(shapeMelds(player))];
   for(let tile=0;tile<34;tile++) {
     if(tileCount(visible,tile)>=4) continue;
-    // 七对仅限自摸，普通牌型可点炮或自摸，任一方式成立即为有效听牌。
+    // 七对、豪华七对与普通牌型均可炮胡或自摸，取有效听张的并集。
     const full=[...hand,tile];
     if(evaluateChangchunWin(player,full,tile,"点炮",{forTenpai:true,disableBao:true}).legal
       || evaluateChangchunWin(player,full,tile,"自摸",{forTenpai:true,disableBao:true}).legal) waits.push(tile);
@@ -1749,9 +1776,23 @@ function declareTing(player, candidate) {
   return true;
 }
 
-function determineBaopai(roll=Math.floor(Math.random()*6)+1) {
+// Track the selected physical copy, not merely its rank. Every wall removal
+// passes here so a head draw cannot leave a stale treasure position behind.
+function takeWallTile(index) {
+  if(!Number.isInteger(index)||index<0||index>=state.wall.length)return null;
+  const [tile]=state.wall.splice(index,1);
+  if(state.baopaiWallIndex===index)state.baopaiWallIndex=null;
+  else if(state.baopaiWallIndex!==null&&index<state.baopaiWallIndex)state.baopaiWallIndex--;
+  return tile;
+}
+
+function determineBaopai(roll=null) {
   if(!state.wall.length) return null;
-  const index=Math.max(0,state.wall.length-roll);
+  const available=Math.min(6,state.wall.length);
+  const distance=roll===null?Math.floor(Math.random()*available)+1:roll;
+  if(!Number.isInteger(distance)||distance<1||distance>available)return null;
+  const index=state.wall.length-distance;
+  state.baopaiWallIndex=index;
   state.baopai=state.wall[index];
   state.baopaiCandidates.push(state.baopai);
   state.baopaiPending=false;
@@ -1817,11 +1858,12 @@ function completeBaoKong(player,bao) {
 }
 
 function getBaoKongOption(player,tile) {
-  // The indicator must still have a physical copy in the wall to be taken as
-  // the fourth tile. Its replacement is drawn only after the new bao is seen.
+  // The selected indicator itself must still be in the wall, not just another
+  // copy of its rank. Draw its replacement only after the new bao is seen.
   if(state.wall.length<2)return null;
-  const wallIndex=state.wall.indexOf(tile);
-  if(wallIndex<0) return false;
+  const wallIndex=state.baopaiWallIndex;
+  if(tile!==state.baopai||!Number.isInteger(wallIndex)||wallIndex<0
+    ||wallIndex>=state.wall.length||state.wall[wallIndex]!==tile)return null;
   const eggIndex=state.eggs[player].findIndex((egg,index)=>!egg.standardGang
     &&eggSupplementIndex(egg,tile)>=0&&canKeepTingAfterKong(player,tile,"egg","external",index));
   const added=state.melds[player].find(m=>m.type==="peng"&&m.tiles[0]===tile);
@@ -1837,15 +1879,17 @@ function tryBaoKong(player,tile) {
   const option=getBaoKongOption(player,tile);
   if(!option) return false;
   const {wallIndex,eggIndex,added,canAdded}=option;
-  state.wall.splice(wallIndex,1);
+  takeWallTile(wallIndex);
   if(eggIndex>=0) {
     state.eggs[player][eggIndex].tiles.push(tile);
     state.eggDrawn[player].push(tile);
   } else if(canAdded) {
-    added.type="gang"; added.tiles.push(tile);
+    // A previously exposed peng stays open when completed with the treasure.
+    added.type="gang"; added.tiles.push(tile); added.concealed=false;
   } else {
     for(let i=0;i<3;i++) removeTile(state.hands[player],tile);
-    state.melds[player].push({type:"gang",tiles:Array(4).fill(tile)});
+    // Three concealed hand tiles + the treasure form a concealed kong.
+    state.melds[player].push({type:"gang",tiles:Array(4).fill(tile),concealed:true});
   }
   state.tenpaiSignature=null;
   playSound("gang"); beep(520,.08);
@@ -1937,6 +1981,7 @@ function eggSupplementIndex(egg,tile) {
 }
 
 function executeEgg(player,type,tiles) {
+  if(mustWinWithBao(player))return false;
   if(state.phase!=="discard"||state.current!==player||state.ting[player]||!state.firstDrawDone[player]||state.firstDiscardDone[player]) return false;
   if(state.melds[player].length+state.eggs[player].filter(egg=>!egg.standardGang).length>=4) return false;
   if(!detectStartEggs(state.hands[player]).some(egg=>egg.type===type&&egg.tiles.join(",")===tiles.join(","))) return false;
@@ -1957,6 +2002,7 @@ function executeEgg(player,type,tiles) {
 }
 
 function beginEggSupplement(player,tile,eggIndex=null) {
+  if(mustWinWithBao(player))return false;
   if(state.onlinePaused||state.phase!=="discard"||state.current!==player||!canAddEgg(player,tile,eggIndex)||!state.wall.length) return false;
   if(eggIndex===null) eggIndex=state.eggs[player].findIndex(egg=>eggSupplementIndex(egg,tile)>=0);
   const complete=()=>queueActionCue(player,"egg",()=>{
@@ -1968,6 +2014,7 @@ function beginEggSupplement(player,tile,eggIndex=null) {
 }
 
 function addEggTile(player,tile,eggIndex=null) {
+  if(mustWinWithBao(player))return false;
   if(state.onlinePaused||state.phase!=="discard"||state.current!==player||!canAddEgg(player,tile,eggIndex)||!state.wall.length) return false;
   if(eggIndex===null) eggIndex=state.eggs[player].findIndex(egg=>eggSupplementIndex(egg,tile)>=0);
   state.selectedTile=null; state.selectedIndex=null;
@@ -2130,7 +2177,7 @@ function applyOnlineSnapshot(snapshot) {
   state.dealer=snapshot.dealer;state.current=snapshot.current;state.phase=snapshot.phase;
   state.wall=Array(snapshot.wallCount).fill(0);state.hands=snapshot.hands;
   state.melds=snapshot.melds;state.eggs=snapshot.eggs;state.discards=snapshot.discards;
-  state.ting=snapshot.ting;state.baopai=snapshot.baopai;state.baopaiRevealed=snapshot.baopaiRevealed;
+  state.ting=snapshot.ting;state.baopai=snapshot.baopai;state.baopaiWallIndex=null;state.baopaiRevealed=snapshot.baopaiRevealed;
   state.baopaiPending=snapshot.baopaiPending;state.scores=snapshot.scores;
   state.lastDrawn=[snapshot.lastDrawn,null,null,null];state.drawnIndex=snapshot.drawnIndex;
   state.lastDiscard=snapshot.lastDiscard;
@@ -2209,6 +2256,7 @@ function onlineReceiveInput(seat,message) {
   if(message.protocol!==ONLINE_PROTOCOL||message.rulesVersion!==RULES.version||message.round!==state.round
     ||message.inputToken!==inputPermitFor(seat))return false;
   if(message.kind==="discard") {
+    if(mustWinWithBao(seat))return false;
     if(message.tile!==state.hands[seat][message.index])return false;
     // Consume before mutation: performDiscard may immediately publish a fresh
     // post-discard report-ting offer. Never invalidate that new offer afterward.
@@ -2219,6 +2267,7 @@ function onlineReceiveInput(seat,message) {
   const offer=onlineOffers.get(seat);
   if(!offer||offer.version!==message.version||offer.round!==state.round||offer.phase!==state.phase
     ||!Number.isInteger(message.index)||message.index<0||message.index>=offer.actions.length) return false;
+  if(mustWinWithBao(seat)&&offer.actions[message.index].kind!=="hu")return false;
   onlineOffers.delete(seat);
   onlineInputPermits.delete(seat);
   offer.actions[message.index].run();
@@ -2227,25 +2276,33 @@ function onlineReceiveInput(seat,message) {
 }
 
 const HOST_SAVE_FIELDS=["wall","hands","melds","eggs","discards","dealer","current","phase","round","match",
-  "lastDiscard","drawnIndex","ting","lastDrawn","baopai","baopaiRevealed","baopaiCandidates","baopaiPending",
-  "eggDrawn","scores","pendingDraw","firstDrawDone","firstDiscardDone","baoViewReady"];
-function exportHostGame() {
-  if(!isOnlineHost()||state.phase==="idle")return null;
+  "lastDiscard","drawnIndex","ting","lastDrawn","baopai","baopaiWallIndex","baopaiRevealed","baopaiCandidates","baopaiPending",
+  "eggDrawn","scores","pendingDraw","firstDrawDone","firstDiscardDone","baoViewReady","aiDifficulty"];
+function exportSavedGame() {
+  if(state.phase==="idle")return null;
   const saved=Object.fromEntries(HOST_SAVE_FIELDS.map(key=>[key,state[key]]));
   let continuation=null;
   if(state.actionCue)continuation={kind:"cue",phase:state.actionCue.previousPhase,action:state.actionCue.recovery};
   else if(state.phase==="claim")continuation={kind:"response",rob:pendingRob,
     report:state.pending?.kind==="reportTing",answers:onlineClaim?[...onlineClaim.answers]:[],
+    human:state.pending?.options?{options:state.pending.options,...state.pending.context}:null,
     remaining:onlineClaim?(()=>{const task=gameTimerTasks.get(onlineClaim.timer);return task?
       (state.onlinePaused?task.remaining:Math.max(0,task.due-Date.now())):20000;})():20000};
   return JSON.parse(JSON.stringify({schema:1,rulesVersion:RULES.version,state:saved,names:NAMES,status:$("statusText").textContent,
     continuation:restoredContinuation||continuation,result:state.phase==="gameover"?onlineResultPayload():null}));
 }
+function exportHostGame() { return isOnlineHost()?exportSavedGame():null; }
 function validHostGame(saved) {
   const value=saved?.state,tile=id=>Number.isInteger(id)&&id>=0&&id<34;
   const four=array=>Array.isArray(array)&&array.length===4;
-  if(saved?.schema!==1||saved.rulesVersion&&saved.rulesVersion!==RULES.version||!value||!four(saved.names)||!saved.names.every(name=>typeof name==="string")
+  if(saved?.schema!==1||saved.rulesVersion&&saved.rulesVersion!==RULES.version&&!RULES.saveCompatibleVersions.includes(saved.rulesVersion)
+    ||!value||!four(saved.names)||!saved.names.every(name=>typeof name==="string")
     ||!Array.isArray(value.wall)||!value.wall.every(tile)||value.wall.length>136
+    ||value.baopai!==null&&!tile(value.baopai)
+    ||value.baopaiWallIndex===undefined&&saved.rulesVersion===RULES.version
+    ||value.baopaiWallIndex!==undefined&&value.baopaiWallIndex!==null
+      &&(!Number.isInteger(value.baopaiWallIndex)||value.baopaiWallIndex<0||value.baopaiWallIndex>=value.wall.length
+        ||value.wall[value.baopaiWallIndex]!==value.baopai)
     ||!four(value.hands)||!value.hands.every(hand=>Array.isArray(hand)&&hand.length<=14&&hand.every(tile))
     ||!four(value.melds)||!four(value.eggs)||!four(value.ting)||!four(value.scores)
     ||!value.scores.every(Number.isFinite)||![0,1,2,3].includes(value.current)||![0,1,2,3].includes(value.dealer)
@@ -2256,19 +2313,29 @@ function validHostGame(saved) {
   return ["lastDrawn","baopaiRevealed","eggDrawn","firstDrawDone","firstDiscardDone","baoViewReady"].every(key=>four(value[key]))
     &&Array.isArray(value.discards)&&value.discards.every(discard=>tile(discard.tile)&&[0,1,2,3].includes(discard.player));
 }
-function importHostGame(saved) {
-  if(!isOnlineHost()||!validHostGame(saved))return false;
+function importSavedGame(saved,paused) {
+  if(!validHostGame(saved))return false;
   clearGameTimers();onlineOffers.clear();onlineClaim=null;pendingRob=null;
   const copy=JSON.parse(JSON.stringify(saved));
-  for(const key of HOST_SAVE_FIELDS)state[key]=copy.state[key];
+  for(const key of HOST_SAVE_FIELDS)if(copy.state[key]!==undefined)state[key]=copy.state[key];
+  // Older saves kept only the rank. Recover a remaining copy nearest the tail
+  // once; new saves retain the exact position (including null when drawn).
+  if(copy.state.baopaiWallIndex===undefined) {
+    const index=state.baopai===null?-1:state.wall.lastIndexOf(state.baopai);
+    state.baopaiWallIndex=index<0?null:index;
+  }
   normalizeKongData();
   state.round++;
   if(state.pendingDraw)state.pendingDraw.round=state.round;
-  state.onlinePaused=true;state.pending=null;state.actionCue=null;
+  state.onlinePaused=paused;state.pending=null;state.actionCue=null;
+  for(let p=0;p<4;p++)$(`actionCue${p}`)?.classList.remove("show","preview-hidden");
+  $("baoRevealOverlay")?.classList.remove("show");
   state.selectedTile=null;state.selectedIndex=null;state.tenpaiSignature=null;
   NAMES=copy.names;restoredContinuation=copy.continuation||{kind:"resume"};
   $("statusText").textContent=copy.status||"已恢复牌局，等待原玩家重连";
   setActions();render();renderScoreboard();
+  $("matchCircleBadge").textContent=`第${matchCircle()}圈`;
+  $("playAgainBtn").disabled=paused;
   if(copy.result) {
     const result=copy.result;
     $("resultTitle").textContent=result.title;$("resultDetail").textContent=result.detail;$("resultShape").textContent=result.shape;
@@ -2280,8 +2347,16 @@ function importHostGame(saved) {
   }
   return true;
 }
+function importHostGame(saved) { return isOnlineHost()?importSavedGame(saved,true):false; }
 function resumeRestoredGame() {
   const continuation=restoredContinuation;restoredContinuation=null;
+  // A saved pre-fix optional gang/egg animation must not allow declining a
+  // compulsory treasure win. Completed settlements and win cues stay intact.
+  if(mustWinWithBao(state.current,null,true)&&continuation?.action?.kind!=="win") {
+    state.phase="discard";state.pending=null;pendingRob=null;state.lastDiscard=null;
+    render();
+    return !isOnlineHost()&&state.current!==0?scheduleAI():updatePlayerActions(state.current);
+  }
   if(continuation?.kind==="cue") {
     const action=continuation.action;
     state.phase=continuation.phase;
@@ -2297,10 +2372,12 @@ function resumeRestoredGame() {
       declareTing(action.player,{waitTiles:action.waitTiles,reportAllowed:true,tile:action.tile});
       render();return resolveClaims(action.player,action.tile);
     }
+    if(action?.kind==="aiReportTing")return completeAIReportTing(action.player,action.candidate);
   }
   if(state.phase==="gameover")return publishOnlineResult();
-  if(state.phase==="discard")return updatePlayerActions(state.current);
-  if(state.phase==="baoReveal")return offerActions(state.current,[{label:"看宝并继续摸牌",kind:"ting",run:()=>cueRevealBaopai(state.current)}]);
+  if(state.phase==="discard")return !isOnlineHost()&&state.current!==0?scheduleAI():updatePlayerActions(state.current);
+  if(state.phase==="baoReveal")return !isOnlineHost()&&state.current!==0?cueRevealBaopai(state.current)
+    :offerActions(state.current,[{label:"看宝并继续摸牌",kind:"ting",run:()=>cueRevealBaopai(state.current)}]);
   if(state.phase!=="claim"||!state.lastDiscard)return;
   const discard=state.lastDiscard,rob=continuation?.rob;
   if(rob?.kind==="kong")beginAddedKong(rob.player,rob.tile);
@@ -2308,6 +2385,10 @@ function resumeRestoredGame() {
     offerRobWin(rob.player,rob.tile,"抢蛋胡",()=>queueActionCue(rob.player,"egg",()=>{
       state.lastDiscard=null;state.phase="discard";addEggTile(rob.player,rob.tile,rob.eggIndex);
     },{kind:"supplement",player:rob.player,tile:rob.tile,eggIndex:rob.eggIndex}),"egg",rob.eggIndex);
+  } else if(!isOnlineHost()&&continuation?.human?.options?.length) {
+    const context=continuation.human,ai=context.aiHu||context.aiBest;
+    return promptClaims(context.options,()=>ai?.type==="hu"?cueWin(ai.p,"点炮",[...state.hands[ai.p],discard.tile])
+      :ai?cueClaim(ai,discard.player,discard.tile):advanceAfterDiscard(discard.player),context);
   } else if(continuation?.report&&promptPostDiscardTing(discard.player,discard.tile))return;
   else resolveClaims(discard.player,discard.tile);
   const claim=onlineClaim;
@@ -2328,15 +2409,88 @@ function resumeRestoredGame() {
 }
 function setOnlineController(role,controller) {
   if(role!=="host"&&role!=="guest"&&role!=="solo") return false;
+  if(soloMatchActive){saveSoloNow();soloMatchActive=false;}
   clearGameTimers();onlineOffers.clear();onlineClaim=null;restoredContinuation=null;pendingRob=null;
   state.onlineRole=role;state.onlinePaused=false;onlineController=controller;
   onlineInputPermits.clear();guestInputToken=null;
   onlineSession=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
   if(role==="solo") NAMES=["你","阿岚","小满","老陈"];
+  if($("returnHomeBtn"))$("returnHomeBtn").disabled=role!=="solo";
+  return true;
+}
+
+function readSoloSave() {
+  try {
+    const saved=JSON.parse(window.localStorage?.getItem(SOLO_SAVE_KEY)||"null");
+    const match=saved?.game?.state?.match;
+    return saved?.schema===1&&saved.kind==="solo"&&validHostGame(saved.game)&&match&&!match.complete
+      &&Number.isInteger(match.handNumber)&&match.handNumber>0&&match.dealerAdvances>=0&&match.dealerAdvances<16
+      &&Number.isInteger(match.nextDealerAdvances)&&["simple","hard"].includes(saved.game.state.aiDifficulty)
+      ?saved:null;
+  } catch {return null;}
+}
+function refreshSoloResume() {
+  const saved=readSoloSave(),button=$("resumeAiBtn");
+  if(!button)return;
+  button.hidden=!saved;
+  $("modeSaveHint").hidden=!saved;
+  if(saved) {
+    const value=saved.game.state;
+    const circle=Math.min(RULES.circles,Math.floor(value.match.dealerAdvances/4)+1);
+    $("resumeAiSummary").textContent=`${value.aiDifficulty==="hard"?"困难":"简单"} · 第${circle}圈 · 第${value.match.handNumber}手${value.phase==="gameover"?" · 待下一局":""}`;
+  }
+}
+function saveSoloNow() {
+  if(!soloMatchActive||state.onlineRole!=="solo"||state.phase==="idle")return false;
+  try {
+    const storage=window.localStorage;
+    if(!storage)throw Error("浏览器不支持本地存储");
+    if(state.match.complete)storage.removeItem(SOLO_SAVE_KEY);
+    else {
+      const game=exportSavedGame();
+      if(!game||!validHostGame(game))return false;
+      storage.setItem(SOLO_SAVE_KEY,JSON.stringify({schema:1,kind:"solo",savedAt:Date.now(),game}));
+    }
+    soloSaveErrorShown=false;
+    return true;
+  } catch {
+    if(!soloSaveErrorShown){showResourceError("本地对局保存失败，退出后可能无法恢复；请检查浏览器存储权限。 ");soloSaveErrorShown=true;}
+    return false;
+  }
+}
+function queueSoloSave() {
+  if(!soloMatchActive||state.onlineRole!=="solo"||soloSaveQueued)return;
+  soloSaveQueued=true;
+  // Save once at the end of an action, never a halfway-mutated render/status.
+  Promise.resolve().then(()=>{soloSaveQueued=false;saveSoloNow();});
+}
+function returnSoloHome() {
+  if(state.onlineRole!=="solo")return false;
+  if(soloMatchActive&&!saveSoloNow())return false;
+  soloMatchActive=false;
+  clearGameTimers();onlineOffers.clear();onlineClaim=null;pendingRob=null;restoredContinuation=null;
+  state.actionCue=null;state.pending=null;state.phase="idle";
+  for(let p=0;p<4;p++)$(`actionCue${p}`)?.classList.remove("show","preview-hidden");
+  $("baoRevealOverlay")?.classList.remove("show");
+  setActions();setMenuOpen(false);
+  for(const id of ["resultDialog","scoreboardDialog","rulesDialog"])$(id).close();
+  refreshSoloResume();
+  if(!$("modeDialog").open)$("modeDialog").showModal();
+  return true;
+}
+function resumeSoloMatch() {
+  if(state.onlineRole!=="solo")return false;
+  const saved=readSoloSave();
+  if(!saved){refreshSoloResume();return false;}
+  setOnlineController("solo",null);
+  if(!importSavedGame(saved.game,false))return false;
+  soloMatchActive=true;
+  $("modeDialog").close();setMenuOpen(false);
+  resumeRestoredGame();queueSoloSave();finishLoading();
   return true;
 }
 function publishOnlineResult() {
-  if(!isOnlineHost()) return;
+  if(!isOnlineHost()) {queueSoloSave();return;}
   publishOnline();onlineController?.publishResult(onlineResultPayload());
 }
 function shortName(id){return id<27?`${id%9+1}${["万","筒","条"][Math.floor(id/9)]}`:["东","南","西","北","中","发","白"][id-27];}
@@ -2392,14 +2546,18 @@ function setMenuOpen(open) {
 }
 $("menuToggle").onclick=()=>setMenuOpen($("gameMenu").hidden);
 setMenuOpen(false);
-$("newGameBtn").onclick=()=>{setMenuOpen(false);startMatch();};
+$("newGameBtn").onclick=()=>{setMenuOpen(false);state.onlineRole==="solo"?startAIMatch(state.aiDifficulty):startMatch();};
 function startAIMatch(difficulty) {
+  setOnlineController("solo",null);
   state.aiDifficulty=difficulty;
+  soloMatchActive=true;
   $("modeDialog").close();
   try {startMatch();} catch(error) {showResourceError(`游戏初始化失败：${error.message}`);throw error;}
 }
 $("modeAiBtn").onclick=()=>startAIMatch("simple");
 $("modeHardBtn").onclick=()=>startAIMatch("hard");
+$("resumeAiBtn").onclick=resumeSoloMatch;
+$("returnHomeBtn").onclick=returnSoloHome;
 $("modeDialog").addEventListener("cancel",event=>event.preventDefault());
 if(document.body) document.body.dataset.tileTheme=state.tileTheme;
 $("tileThemeSelect").value=state.tileTheme;
@@ -2414,7 +2572,11 @@ $("volumeSlider").oninput=e=>{state.volume=+e.target.value/100;if(state.volume>0
 document.addEventListener("pointerdown",unlockAudio,{once:true});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(state.pending&&!state.onlinePaused){const cb=state.pending.onPass;state.pending=null;setActions();cb();}else if(!$("gameMenu").hidden)setMenuOpen(false);});
 window.addEventListener?.("error",event=>{if(event.target?.tagName==="IMG")showResourceError("麻将牌图片加载失败，请检查网络后刷新重试。");},true);
+window.addEventListener?.("pagehide",saveSoloNow);
+window.addEventListener?.("beforeunload",saveSoloNow);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)saveSoloNow();});
 
+refreshSoloResume();
 try{$("modeDialog").showModal();}catch(error){showResourceError(`模式选择打开失败：${error.message}`);throw error;}
 
 // Expose rule helpers for the lightweight test page / console diagnostics.

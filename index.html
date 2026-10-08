@@ -59,6 +59,7 @@
       <button id="soundBtn" class="menu-item menu-sound" type="button" aria-label="关闭声音"><span>声音</span><small id="soundState">开</small></button>
       <label class="menu-volume" for="volumeSlider"><span>音量</span><input id="volumeSlider" type="range" min="0" max="100" value="55" aria-label="音效音量"></label>
       <button id="newGameBtn" class="menu-item menu-new" type="button" aria-label="开始新一场">新场</button>
+      <button id="returnHomeBtn" class="menu-item" type="button" aria-label="保存人机对局并返回主页">存档退出</button>
     </aside>
     </div>
   </main>
@@ -75,9 +76,13 @@
     <span class="mode-mark">春</span>
     <h2 id="modeTitle">长春麻将</h2>
     <p>请选择对局方式</p>
-    <button id="modeAiBtn" class="mode-choice mode-choice-active" type="button"><strong>简单人机</strong><small>保留当前机器人的打法</small></button>
-    <button id="modeHardBtn" class="mode-choice mode-choice-hard" type="button"><strong>困难人机</strong><small>参考余牌、胡分与蛋杠收益决策</small></button>
-    <button id="modeGroupBtn" class="mode-choice mode-choice-online" type="button"><strong>组局对局</strong><small>创建房间，邀请三位朋友</small></button>
+    <div class="mode-choices">
+      <button id="resumeAiBtn" class="mode-choice mode-choice-resume" type="button" hidden><strong>恢复对局</strong><small id="resumeAiSummary"></small></button>
+      <button id="modeAiBtn" class="mode-choice mode-choice-active" type="button"><strong>简单人机</strong><small>保留当前机器人的打法</small></button>
+      <button id="modeHardBtn" class="mode-choice mode-choice-hard" type="button"><strong>困难人机</strong><small>参考余牌、胡分与蛋杠收益决策</small></button>
+      <button id="modeGroupBtn" class="mode-choice mode-choice-online" type="button"><strong>组局对局</strong><small>创建房间，邀请三位朋友</small></button>
+    </div>
+    <p id="modeSaveHint" class="mode-save-hint" hidden>新开简单/困难人机会替换上次人机存档</p>
   </dialog>
 
   <dialog id="onlineDialog" class="modal online-dialog" aria-labelledby="onlineTitle">
@@ -113,8 +118,8 @@
     <div class="rule-grid">
       <section><b>牌张与行牌</b><p>万、饼、条及东南西北中发白共 136 张。可吃上家、碰杠任意一家；胡牌优先。固定座位打四圈；庄家胡牌连庄，否则顺位换庄，北风过庄后进入下一圈。</p></section>
       <section><b>胡牌门槛</b><p>需三色全、不断幺九、至少一叉；已成合法听牌时可接上家的牌胡牌。9 蛋与中发白、杠牌有对应豁免。</p></section>
-      <section><b>报听与宝牌</b><p>本回合打出一张牌后若成听牌，可立即报听；暂不报听可继续换牌，也可正常自摸胡牌，但不能看宝或摸宝胡。胡牌自动按最高牌型结算。首次报听后的下一次摸牌前打宝，宝牌先盖住；看宝只揭示已打出的宝牌。报听当回合不能看宝，下次轮到自己时先看宝，再摸牌。宝牌正好能胡则直接对宝胡；可补蛋或开杠则先杠、重新换宝。</p></section>
-      <section><b>番型与结算</b><p>支持平胡、夹胡、飘胡、飘顶、七对与豪华七对。手把一上听只允许飘顶；已有吃牌时，手牌剩四张不能再吃碰成手把一。碰后补杠按本地规则变站立。自摸、庄家、对宝、摸宝另计番。点炮者未看宝则包炮。蛋杠分独立于胡牌番数，按分值由其余三家分别支付。</p></section>
+      <section><b>报听与宝牌</b><p>本回合打出一张牌后若成听牌，可立即报听；暂不报听可继续换牌，也可正常自摸胡牌，但不能看宝或摸宝胡。胡牌自动按最高牌型结算。首次报听后的下一次摸牌前打宝，宝牌先盖住；看宝只揭示已打出的宝牌。报听当回合不能看宝，下次轮到自己时先看宝，再摸牌。宝牌正好能胡则直接对宝胡；后续摸宝能胡时只能胡牌，不可弃胡出牌或改选补蛋、杠牌。看宝时宝牌不能直接胡但可补蛋或开杠，则先杠、重新换宝。</p></section>
+      <section><b>番型与结算</b><p>支持平胡、夹胡、飘胡、飘顶、七对与豪华七对；七对和豪华七对均可炮胡或自摸，基础分别为 3、4 番，不另加站立番。手把一上听只允许飘顶；已有吃牌时，手牌剩四张不能再吃碰成手把一。碰后补杠按本地规则变站立。自摸、庄家、对宝、摸宝另计番。点炮者未看宝则包炮。蛋杠分独立于胡牌番数，按分值由其余三家分别支付。</p></section>
     </div>
     <p class="rule-note">提示：起手若能组成多种蛋，可逐组选择实牌；大蛋仅限四张相同的中、发、白、一饼或幺鸡。补蛋前其他家可抢蛋胡；无人胡才补牌。报听后只能打出刚摸到的牌；新牌可补蛋或开杠，但听张和牌型须保持不变。没有幺九的听牌只能胡幺九，且不能报听、不能看宝。</p>
   </dialog>

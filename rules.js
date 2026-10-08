@@ -4,7 +4,8 @@
   "use strict";
   const deepFreeze=value=>{Object.values(value).forEach(item=>{if(item&&typeof item==="object")deepFreeze(item);});return Object.freeze(value);};
   const config=deepFreeze({
-    version:"changchun-20261008-1",tileKinds:34,copies:4,circles:4,
+    version:"changchun-20261008-4",saveCompatibleVersions:["changchun-20261008-2","changchun-20261008-3"],
+    tileKinds:34,copies:4,circles:4,bao:{mustWin:true},
     patterns:{ping:{name:"平胡",fans:0},jia:{name:"夹胡",fans:1},piao:{name:"飘胡",fans:2},
       piaoding:{name:"飘顶",fans:3},qidui:{name:"七对",fans:3,sevenPairs:true},haoqidui:{name:"豪华七对",fans:4,sevenPairs:true}},
     eggs:{threeWinds:{name:"风蛋",required:[27,28,29,30],points:1},joy:{name:"喜蛋",required:[31,32,33],points:1},
@@ -168,8 +169,8 @@ function patternName(type) {
 function detectPattern(hand, melds=[], winTile, method="自摸") {
   const standing=isStanding(melds);
   let type="ping";
-  if(isSelfDraw(method)&&melds.length===0&&isHaoQiDui(hand)) type="haoqidui";
-  else if(isSelfDraw(method)&&melds.length===0&&isQiDui(hand)) type="qidui";
+  if(melds.length===0&&isHaoQiDui(hand)) type="haoqidui";
+  else if(melds.length===0&&isQiDui(hand)) type="qidui";
   else if(isPiaoDing(hand,melds,winTile)) type="piaoding";
   else if(isPiaoHu(hand,melds)) type="piao";
   else if(isJiaHu(hand,melds,winTile)) type="jia";
@@ -210,13 +211,12 @@ function coreWin({hand,winTile,melds=[],eggs=[],ting=null},options={}) {
   if(!isWinning(hand,melds.length))return {legal:false};
   const qidui=melds.length===0&&isQiDui(hand),standard=isWinningStandard(hand,melds.length);
   if(melds.length===4&&!isPiaoDing(hand,melds,winTile))return {legal:false};
-  if(qidui&&!isSelfDraw(options.method)&&!standard)return {legal:false};
   const before=[...tileInHandWithoutWin(hand,winTile),...meldTiles(melds)];
   const silentYaoJiu=!before.some(isTerminalOrHonor);
   if(silentYaoJiu&&!isTerminalOrHonor(winTile))return {legal:false};
   if(!eggs.some(egg=>egg.type==="nine")&&!hasAllThreeSuits(hand,melds))return {legal:false};
   if(!hasYaoJiu(hand,melds))return {legal:false};
-  if(standard&&!hasATriplet(hand,melds)&&!hasDragon(hand,melds)&&!hasKong(melds)&&eggs.length===0)return {legal:false};
+  if(!qidui&&standard&&!hasATriplet(hand,melds)&&!hasDragon(hand,melds)&&!hasKong(melds)&&eggs.length===0)return {legal:false};
   if(!options.ignoreTing&&!options.forTenpai){
     // Reporting locks the hand and grants treasure access; it is not a
     // prerequisite for an ordinary self-drawn win while changing the hand.

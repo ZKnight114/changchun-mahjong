@@ -142,6 +142,10 @@ button.tile:hover{transform:translateY(-7px);filter:brightness(1.07)}
 .mode-choice:disabled{opacity:.62;cursor:not-allowed;filter:grayscale(.35)}
 .mode-choice-online{background:#eaf5ef;border-color:#9bbfae;color:#175449}
 .mode-choice-online:hover,.mode-choice-online:focus-visible{outline:2px solid #4c9478;outline-offset:2px;background:#ddf0e5}
+.mode-choices{display:flex;flex-direction:column;gap:12px}
+.mode-choice-resume{border-color:#5b91ab;background:linear-gradient(#e3f5ff,#b8d9eb);color:#17445c;box-shadow:0 4px 0 #56869f}
+.mode-dialog [hidden]{display:none}
+.mode-dialog .mode-save-hint{font-size:11px;margin:2px 0 0}
 .online-dialog{width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:25px;overflow:auto}
 .online-dialog[hidden],.online-dialog [hidden]{display:none}
 .online-dialog h2{margin:0 0 18px}
@@ -720,6 +724,26 @@ html,body{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
 .game-menu .menu-volume{min-height:58px;gap:2px;font-size:11px}
 .game-menu .menu-volume input{height:50px}
 }
+/* Home only: a compact two-column grid fits all four choices on a phone,
+   including the side-on portrait layout. The playing table is unchanged. */
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+.mode-dialog[open]{gap:8px;padding:12px 18px;overflow:hidden}
+.mode-dialog .mode-mark{display:none}
+.mode-dialog h2{font-size:22px;line-height:1.2}
+.mode-dialog p{margin:0;font-size:12px;line-height:1.3}
+.mode-dialog .mode-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.mode-dialog .mode-choice{min-width:0;min-height:66px;padding:10px 8px;gap:4px;justify-content:center}
+.mode-dialog .mode-choice strong{font-size:17px;line-height:1.2}
+.mode-dialog .mode-choice small{font-size:11px;line-height:1.3;overflow-wrap:anywhere}
+.mode-dialog .mode-save-hint{font-size:10px}
+}
+@media (orientation:landscape) and (max-height:280px){
+.mode-dialog[open]{padding:8px 14px;gap:5px}
+.mode-dialog h2{font-size:18px}
+.mode-dialog .mode-choice{min-height:50px;padding:7px;gap:2px}
+.mode-dialog .mode-choice strong{font-size:15px}
+}
 @media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
 .game-stage{width:100%;height:100%;min-height:0}
 }
@@ -744,4 +768,21 @@ html,body{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
 .seat-bottom .seat-waits-slot .own-waits{padding:1px 5px;margin:0;font-size:9px;line-height:1.2;pointer-events:none}
 .seat-bottom .seat-waits-slot .own-waits span:first-child{display:none}
 .seat-bottom .seat-waits-slot .own-waits span:not(:first-child){padding:0 3px}
+}
+/* Hand layers: above badges, rivers and exposed groups, below modal/cue UI.
+   Raise the dock's stacking context too: a child z-index cannot escape it.
+   Blank areas remain click-through; only the actual controls catch input. */
+.bottom-dock{z-index:24;pointer-events:none}
+.bottom-dock .action-bar,.bottom-dock .seat-hand-slot,.bottom-dock .seat-meld-slot,
+.bottom-dock .seat-egg-slot,.bottom-dock .seat-badge-slot{pointer-events:auto}
+.seat .seat-hand-slot{position:relative;z-index:8}
+.seat-bottom{container-type:inline-size}
+.seat-bottom-cards{position:relative;z-index:3;padding-top:16px;padding-bottom:10px}
+.seat-bottom .seat-hand-slot button.tile{width:clamp(40px,3.8vw,50px);height:auto;aspect-ratio:3 / 4;z-index:1;touch-action:manipulation}
+.seat-bottom .seat-hand-slot button.tile.selected,.seat-bottom .seat-hand-slot button.tile:hover{z-index:2}
+@media (orientation:landscape) and (max-height:600px),
+       (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+/* Size against the actual table, not the full phone width. Reserve space for
+   the badge, 14 tiles' margins, the separate drawn tile and the selection rim. */
+.seat-bottom .seat-hand-slot button.tile{width:32px;width:clamp(27px,calc((100cqw - 132px) / 14),39px)}
 }
