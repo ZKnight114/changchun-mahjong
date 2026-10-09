@@ -14,7 +14,13 @@
   <main class="game-shell">
     <div class="game-stage">
     <section class="table" aria-label="麻将桌">
+      <div id="tableDepth" class="perspective-depth" aria-hidden="true"></div>
       <div id="tableSurface" class="perspective-surface" aria-hidden="true"></div>
+      <svg id="tableRim" class="perspective-rim" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="rimFinish" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#62766b"/><stop offset="1" stop-color="#364e4a"/></linearGradient></defs>
+        <path class="rim-top" fill-rule="evenodd"/><path class="rim-bevel"/>
+        <path class="rim-outline"/><path class="rim-inner-line"/>
+      </svg>
       <div class="table-meta"><span id="matchCircleBadge" class="match-circle-badge" aria-label="当前圈数">第1圈</span><span id="onlineConnectionBadge" class="online-connection-badge" hidden></span><span id="appUpdateBadge" class="app-update-badge" role="status" hidden>新版已就绪</span></div>
       <button id="menuToggle" class="menu-toggle" type="button" aria-controls="gameMenu" aria-expanded="false" aria-label="展开游戏菜单"><span aria-hidden="true">☰</span><span id="menuToggleLabel">菜单</span></button>
       <div id="baoPanel" class="bao-panel" aria-label="宝牌区域"><span>宝牌</span><span id="baoTile"></span></div>

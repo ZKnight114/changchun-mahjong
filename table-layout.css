@@ -5,6 +5,13 @@
 .table{--board-side:0px;--board-top:0px;--board-bottom:0px;position:relative;display:block;flex:none;width:100%;height:100%;min-height:0;aspect-ratio:auto;margin:0;container-type:size;overflow:hidden;background:radial-gradient(ellipse at 50% 28%,#16483f,#082f29 75%)}
 .table::before,.center-stage::before,.center-stage::after{display:none}
 .perspective-surface{position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 42%,#24677a,#104556 80%);pointer-events:none}
+.perspective-depth{position:absolute;inset:0;z-index:0;background:linear-gradient(#233d3b,#0c2025);pointer-events:none}
+.perspective-rim{position:absolute;inset:0;width:100%;height:100%;z-index:1;overflow:visible;pointer-events:none}
+.perspective-rim .rim-top{fill:url(#rimFinish)}
+.perspective-rim .rim-bevel{fill:#163f43}
+.perspective-rim :is(.rim-outline,.rim-inner-line){fill:none;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.perspective-rim .rim-outline{stroke:#a2b19a;stroke-width:1.25}
+.perspective-rim .rim-inner-line{stroke:#a0a87b;stroke-width:.9}
 .table .center-stage,.table .discard-zone,.table .discard-river,.table .bottom-dock,.table .seat{position:absolute;inset:0;display:block;transform:none;margin:0;padding:0;width:100%;height:100%;max-width:none;max-height:none;min-width:0;min-height:0;gap:0;border:0;box-shadow:none;background:none;overflow:visible;pointer-events:none;container-type:normal}
 .table .center-stage{z-index:2}
 .table .discard-zone,.table .discard-river{z-index:auto}
@@ -24,12 +31,18 @@
 .table .table-tile-box.face-on .solid-1{display:none}
 .table .table-tile-box.raised{translate:0 -8px;z-index:2000!important}
 @media(hover:hover){.table .table-tile-box:has(button.tile:hover:not(:disabled)){translate:0 -7px;z-index:2000!important}}
-.table .table-tile-box .tile,.table .seat-bottom .seat-hand-slot button.tile{position:absolute;left:0;top:0;right:auto;bottom:auto;display:block;width:58px;height:84px;min-width:0;min-height:0;aspect-ratio:auto;padding:0;margin:0;border-radius:4px;transform-origin:0 0;z-index:2;overflow:hidden;pointer-events:none;animation:none;transition:none}
+.table .table-tile-box .tile,.table .seat-bottom .seat-hand-slot button.tile{position:absolute;left:0;top:0;right:auto;bottom:auto;display:block;width:58px;height:84px;min-width:0;min-height:0;aspect-ratio:auto;padding:0;margin:0;border-radius:6px;transform-origin:0 0;z-index:2;overflow:hidden;pointer-events:none;animation:none;transition:none}
 .table .table-tile-box .tile[data-tile],.table .seat .seat-hand-slot .table-tile-box button.tile{pointer-events:auto;touch-action:manipulation}
 .table .table-tile-box .tile img,.table .seat .table-tile-box .tile img,body[data-tile-theme] .table .table-tile-box .tile img{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;margin:0;transform:none;object-fit:fill}
 .table .table-tile-box .tile:not(.back) img{width:100%;height:100%;margin:0}
 .tile-solid-face{position:absolute;inset:0;display:block;pointer-events:none;background:linear-gradient(#eee7cd,#d2c5a0);z-index:1}
 .tile-solid-face.solid-1{background:#147d59}
+.tile-back-edges{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:3}
+.tile-back-edges path{fill:none;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tile-back-edges .back-edge{stroke:#94cdd2;stroke-width:1.25}
+.tile-back-edges .top-edge{stroke:#52796e;stroke-width:1}
+body[data-tile-theme="b"] .tile-back-edges .back-edge{stroke:#d3b768}
+body[data-tile-theme="b"] .tile-back-edges .top-edge{stroke:#c5a858}
 body[data-tile-theme="b"] .tile-solid-face{background:#53545b}
 body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 .table .table-tile-box .tile.drawn::before{display:none}
@@ -54,12 +67,18 @@ body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 .player-points{font-size:clamp(11px,1cqw,14px);font-variant-numeric:tabular-nums}
 .player-points.gain{color:#cfedd7}.player-points.loss{color:#ffb6a6}
 .table .table-center{position:absolute;width:auto;height:auto;transform:none;pointer-events:none;z-index:5}
-.table .wind-ring{margin:0;border-radius:50%;box-shadow:inset 0 0 16px #0004,0 0 0 3px #deba6570;border-color:#d5b463;background:#092f29}
-.table .wall-info{inset:28%;border-radius:50%;background:none}
-.table .wall-info strong{font-size:clamp(16px,2.7cqw,25px)}
-.table .wall-info small{font-size:9px;margin-top:3px}
-.table .wind{width:20px;height:20px;font-size:11px}
-.table .wind.north{top:1px}.table .wind.south{bottom:1px}.table .wind.west{left:1px}.table .wind.east{right:1px}
+.table .wind-ring{margin:0;border:0;border-radius:50%;box-shadow:none;background:none;isolation:isolate}
+.table .wind-ring::before,.table .wind-ring::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:-1}
+.table .wind-ring::before{translate:0 4px;border:2px solid #88713f;background:#665332;box-shadow:0 5px 7px #001b1866}
+.table .wind-ring::after{border:2px solid #d5b463;background:radial-gradient(ellipse at 50% 35%,#22584a,#092f29);box-shadow:inset 0 0 12px #0004}
+.table .wall-info{inset:auto;left:50%;top:50%;width:36%;height:30%;transform:translate(-50%,-50%);display:grid;place-content:center;border-radius:0;background:none;z-index:2}
+.table .wall-info strong{font-size:clamp(16px,2cqw,24px);line-height:1;margin:0}
+.table .wall-info small{display:none}
+.table .wind{left:auto;right:auto;top:auto;bottom:auto;transform:none;width:14px;height:14px;min-width:0;min-height:0;font-size:11px;line-height:1;z-index:2}
+.table .wind.north{top:2px;left:50%;transform:translateX(-50%)}
+.table .wind.south{bottom:2px;left:50%;transform:translateX(-50%)}
+.table .wind.west{left:5px;top:50%;transform:translateY(-50%)}
+.table .wind.east{right:5px;top:50%;transform:translateY(-50%)}
 .table .status-text{position:absolute;top:0;left:0;width:55%;height:auto;max-height:38px;min-height:0;margin:0;padding:2px 5px;text-align:center;font-size:clamp(12px,1.1cqw,16px);line-height:1.3;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .table[data-actions="true"] .status-text{visibility:hidden}
 /* status is a child of the counter in the original markup; position it in
@@ -97,15 +116,17 @@ body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 .table[data-compact="true"] .player-points{font-size:10px}
 .table[data-compact="true"] .player-wind,.table[data-compact="true"] .dealer,.table[data-compact="true"] .ting-badge,.table[data-compact="true"] .seen-bao-badge{min-width:15px;height:15px;line-height:13px;font-size:9px}
 .table[data-compact="true"] .action-btn{min-height:29px;padding:4px 7px;font-size:12px}
-/* Narrow previews keep side profiles in the outer margin, rather than
-   shrinking text or allowing a long nickname to spill onto the hand. */
-.table[data-compact="true"] .seat-left .seat-badge-slot,.table[data-compact="true"] .seat-right .seat-badge-slot{width:54px;max-width:54px}
-.table[data-compact="true"] .seat-left .player-badge,.table[data-compact="true"] .seat-right .player-badge{position:relative;flex-direction:column;width:54px;gap:3px}
-.table[data-compact="true"] .seat-left .avatar,.table[data-compact="true"] .seat-right .avatar{width:24px;height:24px}
-.table[data-compact="true"] .seat-left .player-profile-text,.table[data-compact="true"] .seat-right .player-profile-text{width:100%}
-.table[data-compact="true"] .seat-left .player-profile-name,.table[data-compact="true"] .seat-right .player-profile-name,.table[data-compact="true"] .seat-left .player-profile-score,.table[data-compact="true"] .seat-right .player-profile-score{justify-content:center;gap:2px}
-.table[data-compact="true"] .seat-left .player-profile-score,.table[data-compact="true"] .seat-right .player-profile-score{flex-wrap:wrap}
-.table[data-compact="true"] :is(.seat-left,.seat-right) :is(.dealer,.ting-badge,.seen-bao-badge){position:absolute;min-width:13px;height:13px;line-height:11px;font-size:9px}
-.table[data-compact="true"] :is(.seat-left,.seat-right) .dealer{left:3px;top:2px}
-.table[data-compact="true"] :is(.seat-left,.seat-right) .ting-badge{right:3px;top:2px}
-.table[data-compact="true"] :is(.seat-left,.seat-right) .seen-bao-badge{right:3px;top:16px}
+/* Profiles keep a horizontal avatar/text arrangement, including phones. */
+.table :is(.seat-left,.seat-right) .seat-badge-slot{width:clamp(90px,12cqw,154px);max-width:clamp(90px,12cqw,154px)}
+.table .seat-bottom .seat-badge-slot{width:clamp(86px,10cqw,148px);max-width:clamp(86px,10cqw,148px);z-index:34}
+.table :is(.seat-left,.seat-right,.seat-bottom) .player-badge{width:100%;flex-direction:row}
+.table :is(.seat-left,.seat-right,.seat-bottom) .player-profile-text{flex:1;min-width:0}
+.table :is(.seat-left,.seat-right,.seat-bottom) .player-profile-score{flex-wrap:wrap;gap:2px}
+.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) .avatar{width:20px;height:24px;font-size:13px}
+.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) .player-badge{gap:3px}
+.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) :is(.dealer,.ting-badge,.seen-bao-badge){position:static;min-width:13px;height:13px;line-height:11px;font-size:9px}
+@container (max-height:319px){
+  /* Short browser viewports need the score/status on one row, not a taller
+     profile that grows upward into the side hand. */
+  .table .seat-bottom .seat-badge-slot{width:116px;max-width:116px}
+}
