@@ -50,8 +50,10 @@ function setTileTheme(theme) {
   window.MahjongCacheTheme?.(theme);
   return true;
 }
-const SOUND_FILES={draw:"draw.wav",discard:"discard.wav",peng:"peng.wav",gang:"gang.wav",win:"win.wav",drawgame:"drawgame.wav"};
+const SOUND_FILES={draw:"draw.wav",discard:"discard-a1.wav",chi:"chi-a2.wav",peng:"peng-a3.wav",gang:"gang-a4.wav",win:"win-h2.wav",drawgame:"drawgame.wav"};
+const ACTION_SOUNDS={chi:"chi",peng:"peng",gang:"gang",egg:"gang",hu:"win"};
 const soundCache={};
+let activeSound=null,soundSequence=0,latestSoundEvent=null,guestSoundCursor=null;
 
 const state = {
   wall: [], hands: [[],[],[],[]], melds: [[],[],[],[]], discards: [],
@@ -206,6 +208,7 @@ function setOnlinePaused(paused) {
 }
 function setGuestPaused() {
   if(!isOnlineGuest())return;
+  stopGameSound();guestSoundCursor=null;
   state.onlinePaused=true;setActions(localActions);render();
 }
 
@@ -227,7 +230,9 @@ function queueActionCue(player,type,commit,recovery=null) {
     banner.classList.add("show");
   }
   setStatus(type==="ting"?`${NAMES[player]}报听`:type==="bao"?`${NAMES[player]}看宝`:`${NAMES[player]}${labels[type]}！`);
-  beep(type==="hu"?880:type==="gang"?620:type==="ting"?740:type==="bao"?690:520,.12);
+  // One sound at the start of the visible action; commits never replay it.
+  if(ACTION_SOUNDS[type])playSound(ACTION_SOUNDS[type]);
+  else if(type==="ting"||type==="bao")beep(type==="ting"?740:690,.12);
   cue.timer=later(()=>{
     if(state.round!==round||state.actionCue!==cue) return;
     if(banner) banner.classList.remove("show");
@@ -303,6 +308,7 @@ function finishMatchHand(winner=null) {
 }
 function startGame() {
   clearGameTimers();
+  stopGameSound();latestSoundEvent=null;
   onlineClaim=null;onlineOffers.clear();pendingRob=null;restoredContinuation=null;
   state.round++;
   state.match.handNumber++;
@@ -607,7 +613,7 @@ function performDiscard(player,tile) {
   state.firstDiscardDone[player]=true;
   state.phase="claim"; state.lastDiscard={player,tile}; state.discards.push({player,tile});
   checkBaopaiReplace();
-  setStatus(`${NAMES[player]}打出 ${TILE_NAMES[tile]}`); playSound("discard"); beep(240,.035); render(); triggerDiscardIndicator(player); setActions();
+  setStatus(`${NAMES[player]}打出 ${TILE_NAMES[tile]}`); playSound("discard"); render(); triggerDiscardIndicator(player); setActions();
   if(promptPostDiscardTing(player,tile))return;
   const round=state.round;
   later(()=>{
@@ -846,7 +852,7 @@ function executeClaim(option,discarder,tile) {
     state.melds[p].push({type:option.type,tiles:Array(n+1).fill(tile)});
     // A kong is already represented in melds; never mirror it in eggs.
   }
-  sortHand(state.hands[p]); playSound(option.type==="gang"?"gang":"peng"); beep(option.type==="gang"?520:400,.08);
+  sortHand(state.hands[p]);
   setStatus(`${NAMES[p]}${{chi:"吃",peng:"碰",gang:"杠"}[option.type]}了 ${TILE_NAMES[tile]}`);
   if(option.type==="gang"){ render(); return drawTile(p,true); }
   // 吃/碰不摸牌，所以没有 drawTile 来切换阶段：必须先把状态切回 discard 再渲染。
@@ -902,7 +908,10 @@ function drawTile(player,kongReplacement) {
   // disabled during "drawing" and remain disabled until the next full render.
   state.phase="discard";
   const analysis=evaluateChangchunWin(player,state.hands[player],tile,"自摸");
-  setStatus(mustWinWithBao(player,analysis)?`${NAMES[player]}摸到宝牌，只能胡牌`:`${NAMES[player]}${kongReplacement?"杠后补牌":"摸牌"}`); playSound("draw"); render();
+  setStatus(mustWinWithBao(player,analysis)?`${NAMES[player]}摸到宝牌，只能胡牌`:`${NAMES[player]}${kongReplacement?"杠后补牌":"摸牌"}`);
+  // Changing seats calls this same draw; a kong replacement stays quiet.
+  if(!kongReplacement)playSound("draw");
+  render();
   if(analysis.legal) {
     if(player===0){updateActions();return;}
     if(isOnlineHost()){updatePlayerActions(player);return;}
@@ -1599,7 +1608,7 @@ function selfKong(tile,added) {
   if(added) return beginAddedKong(p,tile);
   for(let i=0;i<4;i++)removeTile(state.hands[p],tile);
   state.melds[p].push({type:"gang",tiles:[tile,tile,tile,tile],concealed:true});
-  setStatus(`${NAMES[p]}暗杠`);playSound("gang");beep(520,.08);render();drawTile(p,true);
+  setStatus(`${NAMES[p]}暗杠`);render();drawTile(p,true);
 }
 
 function beginAddedKong(player,tile) {
@@ -1675,7 +1684,7 @@ function completeAddedKong(player,tile) {
   if(!meld) return;
     meld.type="gang"; meld.tiles.push(tile);
   state.lastDiscard=null; state.phase="discard"; state.current=player;
-  setStatus(`${NAMES[player]}补杠 ${TILE_NAMES[tile]}`);playSound("gang");beep(520,.08);render();drawTile(player,true);
+  setStatus(`${NAMES[player]}补杠 ${TILE_NAMES[tile]}`);render();drawTile(player,true);
 }
 
 function coreChangchunWin(player, hand, winTile, options={}) {
@@ -1892,7 +1901,6 @@ function tryBaoKong(player,tile) {
     state.melds[player].push({type:"gang",tiles:Array(4).fill(tile),concealed:true});
   }
   state.tenpaiSignature=null;
-  playSound("gang"); beep(520,.08);
   return true;
 }
 
@@ -1996,7 +2004,7 @@ function executeEgg(player,type,tiles) {
     state.lastDrawn[0]=null;
   }
   setStatus(`${NAMES[player]}下${eggTypeName(type)}`);
-  playSound("gang"); beep(520,.08); render();
+  render();
   if(player===0) updateActions(); else scheduleAI();
   return true;
 }
@@ -2027,7 +2035,6 @@ function addEggTile(player,tile,eggIndex=null) {
   state.drawnIndex=null;
   state.lastDrawn[player]=null;
   setStatus(`${NAMES[player]}补${eggTypeName(egg.type)} ${shortName(tile)}`);
-  playSound("gang");
   drawTile(player,true);
   return true;
 }
@@ -2095,7 +2102,7 @@ function finishWin(player,method,hand,forcedWinTile=null) {
   const analysis=evaluateChangchunWin(player,hand,nominalWinTile,method,{allowUnreportedWin:unreportedWait,disableBao:forcedWinTile!==null});
   // 所有正常入口都已判定。这里仍保留兜底，以便外部调试调用不会把无效牌型结算成胡。
   if(!analysis.legal) return;
-  clearGameTimers(); state.phase="gameover";setActions();state.current=player;render();playSound("win");beep(player===0?784:180,.25);
+  clearGameTimers(); state.phase="gameover";setActions();state.current=player;render();
   const detected=detectPattern(analysis.hand,shapeMelds(player),analysis.winTile,method);
   const pattern=detected;
   const selfDraw=isSelfDraw(method), duiBao=selfDraw&&forcedWinTile!==null&&isDuiBao(nominalWinTile), moBao=selfDraw&&analysis.moBao;
@@ -2162,9 +2169,23 @@ function onlineSnapshotFor(seat) {
     status:state.onlinePaused?"有玩家离线，牌局已暂停，等待重连":state.pending&&state.phase==="claim"&&seat!==state.current
       ? "等待出牌者确认操作":$("statusText").textContent,
     cue:state.actionCue?{player:local(state.actionCue.player),type:state.actionCue.type}:null,
+    sound:{session:onlineSession,sequence:soundSequence,round:state.round,
+      name:latestSoundEvent?.round===state.round?latestSoundEvent.name:null},
     offer:offer?{version:offer.version,actions:offer.actions.map(a=>({label:a.label,kind:a.kind||"",
       tiles:Array.isArray(a.tiles)?[...a.tiles]:undefined}))}:null
   };
+}
+
+function applyOnlineSound(sound) {
+  if(!sound||typeof sound.session!=="string"||!Number.isSafeInteger(sound.sequence)||sound.sequence<0)return;
+  const previous=guestSoundCursor;
+  if(!previous||previous.session!==sound.session) {
+    // First sync/reconnect establishes a baseline, not historical playback.
+    guestSoundCursor={session:sound.session,sequence:sound.sequence};return;
+  }
+  if(sound.sequence<=previous.sequence)return;
+  guestSoundCursor.sequence=sound.sequence;
+  if(!state.onlinePaused&&sound.round===state.round&&Object.hasOwn(SOUND_FILES,sound.name))playSound(sound.name,false);
 }
 
 function applyOnlineSnapshot(snapshot) {
@@ -2181,6 +2202,7 @@ function applyOnlineSnapshot(snapshot) {
   state.baopaiPending=snapshot.baopaiPending;state.scores=snapshot.scores;
   state.lastDrawn=[snapshot.lastDrawn,null,null,null];state.drawnIndex=snapshot.drawnIndex;
   state.lastDiscard=snapshot.lastDiscard;
+  applyOnlineSound(snapshot.sound);
   if(!sameHand||state.phase!=="discard"||state.current!==0){state.selectedTile=null;state.selectedIndex=null;}
   state.tenpaiSignature=null;
   $("statusText").textContent=snapshot.status;
@@ -2315,6 +2337,7 @@ function validHostGame(saved) {
 }
 function importSavedGame(saved,paused) {
   if(!validHostGame(saved))return false;
+  stopGameSound();latestSoundEvent=null;
   clearGameTimers();onlineOffers.clear();onlineClaim=null;pendingRob=null;
   const copy=JSON.parse(JSON.stringify(saved));
   for(const key of HOST_SAVE_FIELDS)if(copy.state[key]!==undefined)state[key]=copy.state[key];
@@ -2411,6 +2434,7 @@ function setOnlineController(role,controller) {
   if(role!=="host"&&role!=="guest"&&role!=="solo") return false;
   if(soloMatchActive){saveSoloNow();soloMatchActive=false;}
   clearGameTimers();onlineOffers.clear();onlineClaim=null;restoredContinuation=null;pendingRob=null;
+  stopGameSound();latestSoundEvent=null;soundSequence=0;guestSoundCursor=null;
   state.onlineRole=role;state.onlinePaused=false;onlineController=controller;
   onlineInputPermits.clear();guestInputToken=null;
   onlineSession=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -2476,9 +2500,11 @@ function returnSoloHome() {
   for(const id of ["resultDialog","scoreboardDialog","rulesDialog"])$(id).close();
   refreshSoloResume();
   if(!$("modeDialog").open)$("modeDialog").showModal();
+  window.MahjongUpdateHome?.();
   return true;
 }
 function resumeSoloMatch() {
+  if(window.MahjongUpdateBusy?.())return false;
   if(state.onlineRole!=="solo")return false;
   const saved=readSoloSave();
   if(!saved){refreshSoloResume();return false;}
@@ -2498,13 +2524,26 @@ function shortName(id){return id<27?`${id%9+1}${["万","筒","条"][Math.floor(i
 let audioContext;
 function unlockAudio(){try{audioContext??=new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==="suspended")audioContext.resume();}catch{}}
 function beep(freq,duration){if(!state.sound)return;try{unlockAudio();const o=audioContext.createOscillator(),g=audioContext.createGain();o.frequency.value=freq;o.type="triangle";g.gain.setValueAtTime(.055*state.volume,audioContext.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioContext.currentTime+duration);o.connect(g).connect(audioContext.destination);o.start();o.stop(audioContext.currentTime+duration);}catch{}}
-function playSound(name){
-  if(!state.sound||!SOUND_FILES[name])return;
+function stopGameSound(){
+  if(activeSound)try{activeSound.pause();activeSound.currentTime=0;}catch{}
+  activeSound=null;
+}
+function playSound(name,broadcast=true){
+  if(!Object.hasOwn(SOUND_FILES,name))return;
+  // Host mute is local: guests still receive the public sound event. Never
+  // include a tile value; repeated snapshots share the same sequence number.
+  if(broadcast&&isOnlineHost()) {
+    latestSoundEvent={name,round:state.round};soundSequence++;publishOnline();
+  }
+  if(!state.sound||state.volume<=0)return;
   try{
+    stopGameSound();
     const audio=soundCache[name]??=new Audio(`assets/sounds/${SOUND_FILES[name]}`);
     const instance=audio.cloneNode();
     instance.volume=state.volume;
-    instance.play().catch(()=>{});
+    activeSound=instance;
+    instance.addEventListener?.("ended",()=>{if(activeSound===instance)activeSound=null;},{once:true});
+    instance.play().catch(()=>{if(activeSound===instance)activeSound=null;});
   }catch{}
 }
 
@@ -2548,6 +2587,7 @@ $("menuToggle").onclick=()=>setMenuOpen($("gameMenu").hidden);
 setMenuOpen(false);
 $("newGameBtn").onclick=()=>{setMenuOpen(false);state.onlineRole==="solo"?startAIMatch(state.aiDifficulty):startMatch();};
 function startAIMatch(difficulty) {
+  if(window.MahjongUpdateBusy?.())return;
   setOnlineController("solo",null);
   state.aiDifficulty=difficulty;
   soloMatchActive=true;
@@ -2566,9 +2606,9 @@ $("scoreboardBtn").onclick=()=>{setMenuOpen(false);renderScoreboard();$("scorebo
 $("scoreboardDialog").querySelector(".modal-close").onclick=()=>$("scoreboardDialog").close();
 $("rulesBtn").onclick=()=>{setMenuOpen(false);$("rulesDialog").showModal();};
 $("rulesDialog").querySelector(".modal-close").onclick=()=>$("rulesDialog").close();
-$("soundBtn").onclick=()=>{state.sound=!state.sound;$("soundState").textContent=state.sound?"开":"关";$("soundBtn").setAttribute("aria-label",state.sound?"关闭声音":"开启声音");if(state.sound)beep(440,.05);};
+$("soundBtn").onclick=()=>{state.sound=!state.sound;$("soundState").textContent=state.sound?"开":"关";$("soundBtn").setAttribute("aria-label",state.sound?"关闭声音":"开启声音");if(state.sound)beep(440,.05);else stopGameSound();};
 $("errorBannerClose").onclick=()=>{resourceErrorDismissed=true;$("errorBanner").hidden=true;};
-$("volumeSlider").oninput=e=>{state.volume=+e.target.value/100;if(state.volume>0)beep(440,.035);};
+$("volumeSlider").oninput=e=>{state.volume=+e.target.value/100;if(activeSound)activeSound.volume=state.volume;else if(state.volume>0)beep(440,.035);};
 document.addEventListener("pointerdown",unlockAudio,{once:true});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(state.pending&&!state.onlinePaused){const cb=state.pending.onPass;state.pending=null;setActions();cb();}else if(!$("gameMenu").hidden)setMenuOpen(false);});
 window.addEventListener?.("error",event=>{if(event.target?.tagName==="IMG")showResourceError("麻将牌图片加载失败，请检查网络后刷新重试。");},true);
@@ -2577,6 +2617,10 @@ window.addEventListener?.("beforeunload",saveSoloNow);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)saveSoloNow();});
 
 refreshSoloResume();
+// Updates are allowed only at the home screen, never during a match, a
+// settlement or a room setup/lobby (including disconnected online games).
+window.MahjongUpdatePolicy=()=>({safe:state.onlineRole==="solo"&&!soloMatchActive
+  &&$("modeDialog").open&&!$("onlineDialog").open});
 try{$("modeDialog").showModal();}catch(error){showResourceError(`模式选择打开失败：${error.message}`);throw error;}
 
 // Expose rule helpers for the lightweight test page / console diagnostics.

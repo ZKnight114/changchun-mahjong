@@ -257,6 +257,7 @@
     resetSession();
     if($("onlineDialog").open) $("onlineDialog").close();
     if(!$("modeDialog").open) $("modeDialog").showModal();
+    window.MahjongUpdateHome?.();
   }
   function leaveRoom() {
     if(role==="guest"&&connection?.open) {
