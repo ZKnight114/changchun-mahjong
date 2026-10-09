@@ -8,11 +8,13 @@
   <link rel="icon" type="image/png" sizes="512x512" href="assets/app-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="table-layout.css" />
 </head>
 <body>
   <main class="game-shell">
     <div class="game-stage">
     <section class="table" aria-label="麻将桌">
+      <div id="tableSurface" class="perspective-surface" aria-hidden="true"></div>
       <div class="table-meta"><span id="matchCircleBadge" class="match-circle-badge" aria-label="当前圈数">第1圈</span><span id="onlineConnectionBadge" class="online-connection-badge" hidden></span><span id="appUpdateBadge" class="app-update-badge" role="status" hidden>新版已就绪</span></div>
       <button id="menuToggle" class="menu-toggle" type="button" aria-controls="gameMenu" aria-expanded="false" aria-label="展开游戏菜单"><span aria-hidden="true">☰</span><span id="menuToggleLabel">菜单</span></button>
       <div id="baoPanel" class="bao-panel" aria-label="宝牌区域"><span>宝牌</span><span id="baoTile"></span></div>
@@ -150,6 +152,7 @@
   </dialog>
 
   <script src="rules.js"></script>
+  <script src="table-layout.js"></script>
   <script src="game.js"></script>
   <script src="online.js"></script>
   <script src="offline.js"></script>

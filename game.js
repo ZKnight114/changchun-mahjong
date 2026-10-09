@@ -423,7 +423,8 @@ function renderPlayer(p) {
   const tingLabel=ting?'<span class="ting-badge" title="已报听" aria-label="已报听">听</span>':"";
   const seenBao=state.baopai!==null&&state.baopaiRevealed[p];
   const baoLabel=seenBao?'<span class="seen-bao-badge" title="已看宝" aria-label="已看宝">宝</span>':"";
-  const badgeMarkup=`<div class="player-badge ${current?"current":""}"><span class="avatar">${Array.from(NAMES[p])[0]||""}</span><span class="player-name" title="${NAMES[p]}">${NAMES[p]}</span><span>${seatWind(p)}家</span>${p===state.dealer?'<span class="dealer">庄</span>':""}${tingLabel}${baoLabel}</div>`;
+  const score=state.scores[p]||0;
+  const badgeMarkup=`<div class="player-badge ${current?"current":""}" aria-label="${NAMES[p]}，${seatWind(p)}风，${score}分${current?'，当前回合':''}"><span class="avatar" aria-hidden="true">${Array.from(NAMES[p])[0]||""}</span><div class="player-profile-text"><div class="player-profile-name"><span class="player-name" title="${NAMES[p]}">${NAMES[p]}</span><span class="player-wind">${seatWind(p)}</span></div><div class="player-profile-score"><span class="player-points ${score<0?'loss':'gain'}">${score>0?'+':''}${score}分</span>${p===state.dealer?'<span class="dealer">庄</span>':""}${tingLabel}${baoLabel}</div></div></div>`;
   if(slots.badgeMarkup!==badgeMarkup) {
     slots.badge.innerHTML=badgeMarkup;
     slots.badgeMarkup=badgeMarkup;
@@ -525,6 +526,7 @@ function refreshTileHighlights() {
       el.classList.toggle("tenpai",tenpaiTiles.has(+el.dataset.tile));
     }
   });
+  window.MahjongTable?.requestLayout();
 }
 
 function setStatus(text) { $("statusText").textContent=text; publishOnline(); }
@@ -545,6 +547,7 @@ function setActions(actions=[]) {
   }).join("");
   $("actionOptions").querySelectorAll("button").forEach((b,i)=>b.onclick=()=>{if(!state.onlinePaused)options[i].run();});
   $("passBtn").hidden=!pass;$("passBtn").disabled=state.onlinePaused;$("passBtn").onclick=()=>{if(!state.onlinePaused)pass?.run();};
+  window.MahjongTable?.requestLayout();
 }
 
 function updateActions() {
@@ -2582,6 +2585,7 @@ function setMenuOpen(open) {
   $("menuToggle").setAttribute("aria-expanded",String(open));
   $("menuToggle").setAttribute("aria-label",open?"收起游戏菜单":"展开游戏菜单");
   $("menuToggleLabel").textContent=open?"收起":"菜单";
+  window.MahjongTable?.requestLayout();
 }
 $("menuToggle").onclick=()=>setMenuOpen($("gameMenu").hidden);
 setMenuOpen(false);

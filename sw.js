@@ -7,7 +7,7 @@ const ASSET_CACHE="changchun-mahjong-assets-v1";
 const CACHE_PREFIX="changchun-mahjong-";
 const ROOT=new URL(self.registration.scope);
 const SOUND_SHELL_FILES=["assets/sounds/discard-a1.wav","assets/sounds/chi-a2.wav","assets/sounds/peng-a3.wav","assets/sounds/gang-a4.wav","assets/sounds/win-h2.wav"];
-const SHELL=["./","./index.html","./styles.css","./rules.js","./game.js","./online.js","./offline.js","./manifest.webmanifest","./assets/vendor/peerjs.min.js",...SOUND_SHELL_FILES.map(file=>`./${file}`)];
+const SHELL=["./","./index.html","./styles.css","./table-layout.css","./table-layout.js","./rules.js","./game.js","./online.js","./offline.js","./manifest.webmanifest","./assets/vendor/peerjs.min.js",...SOUND_SHELL_FILES.map(file=>`./${file}`)];
 const CLASSIC_FILES=[
   ...["Man","Pin","Sou"].flatMap(suit=>Array.from({length:9},(_,i)=>`${suit}${i+1}`)),
   "Ton","Nan","Shaa","Pei","Chun","Hatsu","Haku"

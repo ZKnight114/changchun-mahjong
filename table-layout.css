@@ -1,0 +1,111 @@
+/* Reference-layout presentation layer. Existing controls, themes, dialogs,
+   highlights and game logic remain in styles.css / game.js. */
+.game-shell{justify-content:center}
+.game-stage{min-height:0;height:min(100dvh,46.153846vw);align-items:stretch}
+.table{--board-side:0px;--board-top:0px;--board-bottom:0px;position:relative;display:block;flex:none;width:100%;height:100%;min-height:0;aspect-ratio:auto;margin:0;container-type:size;overflow:hidden;background:radial-gradient(ellipse at 50% 28%,#16483f,#082f29 75%)}
+.table::before,.center-stage::before,.center-stage::after{display:none}
+.perspective-surface{position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 42%,#24677a,#104556 80%);pointer-events:none}
+.table .center-stage,.table .discard-zone,.table .discard-river,.table .bottom-dock,.table .seat{position:absolute;inset:0;display:block;transform:none;margin:0;padding:0;width:100%;height:100%;max-width:none;max-height:none;min-width:0;min-height:0;gap:0;border:0;box-shadow:none;background:none;overflow:visible;pointer-events:none;container-type:normal}
+.table .center-stage{z-index:2}
+.table .discard-zone,.table .discard-river{z-index:auto}
+.table .seat{z-index:6}
+.table .bottom-dock,.table .seat-bottom{z-index:auto}
+.table .seat .seat-hand-slot,.table .seat .seat-meld-slot,.table .seat .seat-egg-slot,.table .seat-bottom-cards{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;transform:none;overflow:visible;pointer-events:none;container-type:normal}
+.table .seat .seat-hand-slot{z-index:8}
+.table .seat .seat-meld-slot,.table .seat .seat-egg-slot{z-index:3}
+.table .seat-bottom-cards{z-index:auto}
+.table .seat-bottom .seat-hand-slot{z-index:32}
+.table .seat .seat-meld-slot.empty,.table .seat .seat-egg-slot.empty{display:none}
+.table .hand-row,.table .concealed-row,.table .meld-row,.table .egg-row{position:static;display:contents;width:auto;height:auto;max-width:none;max-height:none;margin:0;padding:0;overflow:visible}
+.table .meld-group,.table .egg-group{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;box-sizing:border-box;border:0;border-radius:0;background:none;padding:0;margin:0;pointer-events:none;transform:none;overflow:visible}
+.table .meld-group::after,.table .egg-group::after{position:absolute;left:var(--group-x);top:var(--group-y);right:auto;bottom:auto;padding:0 3px;border-radius:3px;background:#062d28ed;font-size:clamp(11px,1cqw,14px);line-height:15px;transform:none;color:#ffe7a7;pointer-events:none;z-index:2200}
+.table .count-bubble{display:none}
+.table .table-tile-box{position:absolute;display:block;flex:none;margin:0;padding:0;overflow:visible;pointer-events:none;isolation:isolate}
+.table .table-tile-box.face-on .solid-1{display:none}
+.table .table-tile-box.raised{translate:0 -8px;z-index:2000!important}
+@media(hover:hover){.table .table-tile-box:has(button.tile:hover:not(:disabled)){translate:0 -7px;z-index:2000!important}}
+.table .table-tile-box .tile,.table .seat-bottom .seat-hand-slot button.tile{position:absolute;left:0;top:0;right:auto;bottom:auto;display:block;width:58px;height:84px;min-width:0;min-height:0;aspect-ratio:auto;padding:0;margin:0;border-radius:4px;transform-origin:0 0;z-index:2;overflow:hidden;pointer-events:none;animation:none;transition:none}
+.table .table-tile-box .tile[data-tile],.table .seat .seat-hand-slot .table-tile-box button.tile{pointer-events:auto;touch-action:manipulation}
+.table .table-tile-box .tile img,.table .seat .table-tile-box .tile img,body[data-tile-theme] .table .table-tile-box .tile img{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;margin:0;transform:none;object-fit:fill}
+.table .table-tile-box .tile:not(.back) img{width:100%;height:100%;margin:0}
+.tile-solid-face{position:absolute;inset:0;display:block;pointer-events:none;background:linear-gradient(#eee7cd,#d2c5a0);z-index:1}
+.tile-solid-face.solid-1{background:#147d59}
+body[data-tile-theme="b"] .tile-solid-face{background:#53545b}
+body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
+.table .table-tile-box .tile.drawn::before{display:none}
+.table .table-tile-box .tile.drawn{box-shadow:inset 0 0 0 4px #40e7f5,0 0 0 3px #40e7f5}
+.table .table-tile-box.draw-highlight{filter:drop-shadow(0 0 4px #33d9ef)}
+.table .table-tile-box .tile.selected{box-shadow:inset 0 0 0 3px #ffe16d,0 0 0 3px #ffe16d}
+.table .table-tile-box .tile.latest{box-shadow:inset 0 0 0 3px #ff9152,0 0 0 3px #ff9152}
+.table .table-tile-box .tile.latest::before{display:none}
+.table .live-egg-count{opacity:0;pointer-events:none}
+.table-count-layer{position:absolute;inset:0;z-index:28;pointer-events:none}
+.table-count-badge{position:absolute;display:grid;place-items:center;padding:0 2px;border:1px solid #fff0d0;border-radius:99px;background:#bc4230;color:#fff7e4;box-shadow:0 1px 3px #0006;font-weight:700;line-height:1;pointer-events:none;box-sizing:border-box}
+.table .seat .seat-badge-slot{position:absolute;inset:auto;display:block;width:max-content;height:auto;max-width:min(170px,20cqw);padding:0;margin:0;transform:none;writing-mode:horizontal-tb;pointer-events:none;z-index:5}
+.table .player-badge{display:flex;flex-direction:row;align-items:center;gap:6px;width:auto;max-width:none;margin:0;padding:3px 5px 3px 3px;border:1px solid #83b5a33d;border-radius:7px;background:#062e28e0;box-shadow:none;writing-mode:horizontal-tb;animation:none;color:#f3ecd4;font-size:clamp(12px,1.05cqw,15px);line-height:1.2}
+.table .player-badge.current{background:#194c3fe8;border-color:#edd36b;box-shadow:none;color:#ffe7a7}
+.table .avatar{flex:none;width:clamp(26px,4.5cqw,40px);height:clamp(26px,4.5cqw,40px);border-radius:6px;font-size:16px;border:1px solid #a8843b;background:linear-gradient(145deg,#dfc474,#9c7130)}
+.table .player-badge.current .avatar{outline:2px solid #efd574;outline-offset:2px}
+.player-profile-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.player-profile-name,.player-profile-score{display:flex;align-items:center;gap:3px;min-width:0}
+.table .player-badge .player-name{flex:1;max-width:6em;min-width:0;font-weight:600;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.player-wind{flex:none;min-width:17px;line-height:17px;text-align:center;border:1px solid #88b7a8;border-radius:3px;font-size:11px;color:#e2f0df}
+.table .dealer,.table .ting-badge,.table .seen-bao-badge{flex:none;min-width:17px;height:17px;padding:0 2px;line-height:15px;font-size:10px;text-align:center}
+.player-points{font-size:clamp(11px,1cqw,14px);font-variant-numeric:tabular-nums}
+.player-points.gain{color:#cfedd7}.player-points.loss{color:#ffb6a6}
+.table .table-center{position:absolute;width:auto;height:auto;transform:none;pointer-events:none;z-index:5}
+.table .wind-ring{margin:0;border-radius:50%;box-shadow:inset 0 0 16px #0004,0 0 0 3px #deba6570;border-color:#d5b463;background:#092f29}
+.table .wall-info{inset:28%;border-radius:50%;background:none}
+.table .wall-info strong{font-size:clamp(16px,2.7cqw,25px)}
+.table .wall-info small{font-size:9px;margin-top:3px}
+.table .wind{width:20px;height:20px;font-size:11px}
+.table .wind.north{top:1px}.table .wind.south{bottom:1px}.table .wind.west{left:1px}.table .wind.east{right:1px}
+.table .status-text{position:absolute;top:0;left:0;width:55%;height:auto;max-height:38px;min-height:0;margin:0;padding:2px 5px;text-align:center;font-size:clamp(12px,1.1cqw,16px);line-height:1.3;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.table[data-actions="true"] .status-text{visibility:hidden}
+/* status is a child of the counter in the original markup; position it in
+   table coordinates without moving game logic or the live region. */
+.table .table-center{display:contents}
+.table .wind-ring{position:absolute}
+.table .seat-bottom .seat-waits-slot{position:absolute;inset:auto;display:block;width:auto;height:auto;max-width:72%;margin:0;transform:none;z-index:7;pointer-events:none}
+.table .seat-bottom .seat-waits-slot.empty{display:none}
+.table .seat-bottom .own-waits{width:max-content;max-width:100%;height:auto;margin:0;padding:2px 5px;display:flex;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;border-radius:5px;background:#06352be6;font-size:clamp(11px,1cqw,14px);line-height:1.25;pointer-events:auto}
+.table .seat-bottom .own-waits span:first-child{display:none}
+.table .seat-bottom .own-waits span:not(:first-child){padding:0 2px}
+.table .action-bar{position:absolute;inset:auto;display:flex;min-height:0;height:auto;width:max-content;max-width:62%;gap:5px;align-items:center;margin:0;padding:0;transform:none;z-index:40;pointer-events:auto}
+.table .action-bar.empty{display:none}
+.table .action-options{gap:5px;max-width:100%;padding:3px 2px;overflow-x:auto}
+.table .action-btn{min-width:42px;min-height:32px;padding:5px 9px;font-size:13px;line-height:1.2;border-radius:7px}
+.table .action-egg-tiles img{height:29px;width:21px;object-fit:contain}
+.table .action-cue{inset:auto;transform:none;width:clamp(64px,11cqw,100px);height:clamp(64px,11cqw,100px);font-size:clamp(38px,6.5cqw,60px);z-index:45}
+.table .table-meta{top:7px;left:76px;max-width:calc(100% - 180px);font-size:11px}
+.table .bao-panel{left:6px;top:6px;min-width:0;min-height:0;padding:3px;gap:3px;font-size:10px}
+.table .bao-panel .tile{width:25px;height:34px;margin:0;transform:none}
+.table .bao-placeholder{width:25px;height:34px}
+.table .menu-toggle{top:7px;right:7px;min-height:31px;padding:4px 7px;font-size:11px}
+.table .bao-reveal-overlay{z-index:60}
+@media (orientation:landscape) and (max-height:600px){
+  .game-stage{height:100dvh}
+}
+@media (orientation:portrait) and (max-width:760px) and (pointer:coarse){
+  .game-shell{width:100dvh;height:100dvw;min-height:0}
+  .game-stage{width:100%;height:100%;min-height:0}
+}
+.table[data-compact="true"] .player-badge{font-size:11px;padding:2px;gap:4px}
+.table[data-compact="true"] .avatar{width:27px;height:27px;font-size:14px}
+.table[data-compact="true"] .player-profile-text{gap:2px}
+.table[data-compact="true"] .player-name{max-width:5em}
+.table[data-compact="true"] .player-points{font-size:10px}
+.table[data-compact="true"] .player-wind,.table[data-compact="true"] .dealer,.table[data-compact="true"] .ting-badge,.table[data-compact="true"] .seen-bao-badge{min-width:15px;height:15px;line-height:13px;font-size:9px}
+.table[data-compact="true"] .action-btn{min-height:29px;padding:4px 7px;font-size:12px}
+/* Narrow previews keep side profiles in the outer margin, rather than
+   shrinking text or allowing a long nickname to spill onto the hand. */
+.table[data-compact="true"] .seat-left .seat-badge-slot,.table[data-compact="true"] .seat-right .seat-badge-slot{width:54px;max-width:54px}
+.table[data-compact="true"] .seat-left .player-badge,.table[data-compact="true"] .seat-right .player-badge{position:relative;flex-direction:column;width:54px;gap:3px}
+.table[data-compact="true"] .seat-left .avatar,.table[data-compact="true"] .seat-right .avatar{width:24px;height:24px}
+.table[data-compact="true"] .seat-left .player-profile-text,.table[data-compact="true"] .seat-right .player-profile-text{width:100%}
+.table[data-compact="true"] .seat-left .player-profile-name,.table[data-compact="true"] .seat-right .player-profile-name,.table[data-compact="true"] .seat-left .player-profile-score,.table[data-compact="true"] .seat-right .player-profile-score{justify-content:center;gap:2px}
+.table[data-compact="true"] .seat-left .player-profile-score,.table[data-compact="true"] .seat-right .player-profile-score{flex-wrap:wrap}
+.table[data-compact="true"] :is(.seat-left,.seat-right) :is(.dealer,.ting-badge,.seen-bao-badge){position:absolute;min-width:13px;height:13px;line-height:11px;font-size:9px}
+.table[data-compact="true"] :is(.seat-left,.seat-right) .dealer{left:3px;top:2px}
+.table[data-compact="true"] :is(.seat-left,.seat-right) .ting-badge{right:3px;top:2px}
+.table[data-compact="true"] :is(.seat-left,.seat-right) .seen-bao-badge{right:3px;top:16px}
