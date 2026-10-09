@@ -4,7 +4,7 @@
 .game-stage{min-height:0;height:min(100dvh,46.153846vw);align-items:stretch}
 .table{--board-side:0px;--board-top:0px;--board-bottom:0px;position:relative;display:block;flex:none;width:100%;height:100%;min-height:0;aspect-ratio:auto;margin:0;container-type:size;overflow:hidden;background:radial-gradient(ellipse at 50% 28%,#16483f,#082f29 75%)}
 .table::before,.center-stage::before,.center-stage::after{display:none}
-.perspective-surface{position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 42%,#24677a,#104556 80%);pointer-events:none}
+.perspective-surface{position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 42%,#3b526b,#22364d 80%);pointer-events:none}
 .perspective-depth{position:absolute;inset:0;z-index:0;background:linear-gradient(#233d3b,#0c2025);pointer-events:none}
 .perspective-rim{position:absolute;inset:0;width:100%;height:100%;z-index:1;overflow:visible;pointer-events:none}
 .perspective-rim .rim-top{fill:url(#rimFinish)}
@@ -25,7 +25,7 @@
 .table .seat .seat-meld-slot.empty,.table .seat .seat-egg-slot.empty{display:none}
 .table .hand-row,.table .concealed-row,.table .meld-row,.table .egg-row{position:static;display:contents;width:auto;height:auto;max-width:none;max-height:none;margin:0;padding:0;overflow:visible}
 .table .meld-group,.table .egg-group{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;box-sizing:border-box;border:0;border-radius:0;background:none;padding:0;margin:0;pointer-events:none;transform:none;overflow:visible}
-.table .meld-group::after,.table .egg-group::after{position:absolute;left:var(--group-x);top:var(--group-y);right:auto;bottom:auto;padding:0 3px;border-radius:3px;background:#062d28ed;font-size:clamp(11px,1cqw,14px);line-height:15px;transform:none;color:#ffe7a7;pointer-events:none;z-index:2200}
+.table .meld-group::after,.table .egg-group::after{position:absolute;left:var(--group-x);top:var(--group-y);right:auto;bottom:auto;padding:0 3px;border-radius:3px;background:#062d28ed;font-size:clamp(11px,1cqw,13px);line-height:13px;transform:none;color:#ffe7a7;pointer-events:none;z-index:2200}
 .table .count-bubble{display:none}
 .table .table-tile-box{position:absolute;display:block;flex:none;margin:0;padding:0;overflow:visible;pointer-events:none;isolation:isolate}
 .table .table-tile-box.face-on .solid-1{display:none}
@@ -35,16 +35,28 @@
 .table .table-tile-box .tile[data-tile],.table .seat .seat-hand-slot .table-tile-box button.tile{pointer-events:auto;touch-action:manipulation}
 .table .table-tile-box .tile img,.table .seat .table-tile-box .tile img,body[data-tile-theme] .table .table-tile-box .tile img{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;margin:0;transform:none;object-fit:fill}
 .table .table-tile-box .tile:not(.back) img{width:100%;height:100%;margin:0}
-.tile-solid-face{position:absolute;inset:0;display:block;pointer-events:none;background:linear-gradient(#eee7cd,#d2c5a0);z-index:1}
-.tile-solid-face.solid-1{background:#147d59}
+.table{--tile-face-colour:#eee7cd;--tile-face-shade:#d2c5a0;--tile-back-colour:#168467;--tile-back-shade:#0e5443}
+body[data-tile-theme="a"] .table{--tile-back-colour:#147d59;--tile-back-shade:#0c4e38}
+body[data-tile-theme="b"] .table{--tile-face-colour:#53545b;--tile-face-shade:#30323b;--tile-back-colour:#20232b;--tile-back-shade:#12141a}
+body[data-tile-body="jade"] .table{--tile-back-colour:#168467;--tile-back-shade:#0e5443}
+body[data-tile-body="teal"] .table{--tile-back-colour:#147a91;--tile-back-shade:#0e4b60}
+body[data-tile-body="wine"] .table{--tile-back-colour:#813c51;--tile-back-shade:#502337}
+.tile-solid-face{position:absolute;inset:0;display:block;pointer-events:none;background:none;z-index:1}
+.solid-layer{position:absolute;inset:0;display:block;pointer-events:none}
+.face-layer{background:linear-gradient(var(--tile-face-colour),var(--tile-face-shade))}
+.back-layer{background:linear-gradient(var(--tile-back-colour),var(--tile-back-shade))}
+body[data-tile-theme="c"] .table .table-tile-box .tile.back,body[data-tile-body] .table .table-tile-box .tile.back{background:var(--tile-back-colour);border:0;box-shadow:inset 0 0 0 1px #dbe2e0aa}
+body[data-tile-theme="c"] .table .table-tile-box .tile.back img,body[data-tile-body] .table .table-tile-box .tile.back img{opacity:0}
+body[data-tile-theme] .table .table-tile-box.face-on .tile img{object-fit:contain}
 .tile-back-edges{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:3}
 .tile-back-edges path{fill:none;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .tile-back-edges .back-edge{stroke:#94cdd2;stroke-width:1.25}
 .tile-back-edges .top-edge{stroke:#52796e;stroke-width:1}
+.tile-body-outline{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;overflow:visible}
+.tile-body-outline path{fill:none;stroke:#dbe7e0c9;stroke-width:.75;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+body[data-tile-theme="b"] .tile-body-outline path{stroke:#d5c591b0}
 body[data-tile-theme="b"] .tile-back-edges .back-edge{stroke:#d3b768}
 body[data-tile-theme="b"] .tile-back-edges .top-edge{stroke:#c5a858}
-body[data-tile-theme="b"] .tile-solid-face{background:#53545b}
-body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 .table .table-tile-box .tile.drawn::before{display:none}
 .table .table-tile-box .tile.drawn{box-shadow:inset 0 0 0 4px #40e7f5,0 0 0 3px #40e7f5}
 .table .table-tile-box.draw-highlight{filter:drop-shadow(0 0 4px #33d9ef)}
@@ -53,7 +65,9 @@ body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 .table .table-tile-box .tile.latest::before{display:none}
 .table .live-egg-count{opacity:0;pointer-events:none}
 .table-count-layer{position:absolute;inset:0;z-index:28;pointer-events:none}
-.table-count-badge{position:absolute;display:grid;place-items:center;padding:0 2px;border:1px solid #fff0d0;border-radius:99px;background:#bc4230;color:#fff7e4;box-shadow:0 1px 3px #0006;font-weight:700;line-height:1;pointer-events:none;box-sizing:border-box}
+.table-count-badge{position:absolute;display:grid;place-items:center;padding:0;border:1px solid #fff0d0;border-radius:3px;background:#bc4230;color:#fff7e4;box-shadow:0 1px 3px #0006;font-weight:700;line-height:1;pointer-events:none;box-sizing:border-box}
+.table-count-leader{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:-1;pointer-events:none}
+.table-count-leader path{fill:none;stroke:#fff0d0;stroke-width:1;opacity:.8}
 .table .seat .seat-badge-slot{position:absolute;inset:auto;display:block;width:max-content;height:auto;max-width:min(170px,20cqw);padding:0;margin:0;transform:none;writing-mode:horizontal-tb;pointer-events:none;z-index:5}
 .table .player-badge{display:flex;flex-direction:row;align-items:center;gap:6px;width:auto;max-width:none;margin:0;padding:3px 5px 3px 3px;border:1px solid #83b5a33d;border-radius:7px;background:#062e28e0;box-shadow:none;writing-mode:horizontal-tb;animation:none;color:#f3ecd4;font-size:clamp(12px,1.05cqw,15px);line-height:1.2}
 .table .player-badge.current{background:#194c3fe8;border-color:#edd36b;box-shadow:none;color:#ffe7a7}
@@ -118,7 +132,7 @@ body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 .table[data-compact="true"] .action-btn{min-height:29px;padding:4px 7px;font-size:12px}
 /* Profiles keep a horizontal avatar/text arrangement, including phones. */
 .table :is(.seat-left,.seat-right) .seat-badge-slot{width:clamp(90px,12cqw,154px);max-width:clamp(90px,12cqw,154px)}
-.table .seat-bottom .seat-badge-slot{width:clamp(86px,10cqw,148px);max-width:clamp(86px,10cqw,148px);z-index:34}
+.table .seat-bottom .seat-badge-slot{width:clamp(82px,8.5cqw,122px);max-width:clamp(82px,8.5cqw,122px);z-index:34}
 .table :is(.seat-left,.seat-right,.seat-bottom) .player-badge{width:100%;flex-direction:row}
 .table :is(.seat-left,.seat-right,.seat-bottom) .player-profile-text{flex:1;min-width:0}
 .table :is(.seat-left,.seat-right,.seat-bottom) .player-profile-score{flex-wrap:wrap;gap:2px}
@@ -128,5 +142,5 @@ body[data-tile-theme="b"] .tile-solid-face.solid-1{background:#20232b}
 @container (max-height:319px){
   /* Short browser viewports need the score/status on one row, not a taller
      profile that grows upward into the side hand. */
-  .table .seat-bottom .seat-badge-slot{width:116px;max-width:116px}
+  .table .seat-bottom .seat-badge-slot{width:90px;max-width:90px}
 }

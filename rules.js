@@ -4,13 +4,14 @@
   "use strict";
   const deepFreeze=value=>{Object.values(value).forEach(item=>{if(item&&typeof item==="object")deepFreeze(item);});return Object.freeze(value);};
   const config=deepFreeze({
-    appVersion:"20261009-6",
-    version:"changchun-20261008-4",saveCompatibleVersions:["changchun-20261008-2","changchun-20261008-3"],
+    appVersion:"20261009-8",
+    version:"changchun-20261009-1",saveCompatibleVersions:["changchun-20261008-2","changchun-20261008-3","changchun-20261008-4"],
     tileKinds:34,copies:4,circles:4,bao:{mustWin:true},
     patterns:{ping:{name:"平胡",fans:0},jia:{name:"夹胡",fans:1},piao:{name:"飘胡",fans:2},
       piaoding:{name:"飘顶",fans:3},qidui:{name:"七对",fans:3,sevenPairs:true},haoqidui:{name:"豪华七对",fans:4,sevenPairs:true}},
     eggs:{threeWinds:{name:"风蛋",required:[27,28,29,30],points:1},joy:{name:"喜蛋",required:[31,32,33],points:1},
       ones:{name:"幺蛋",required:[0,9,18],points:1},nine:{name:"9蛋",required:[8,17,26],points:1},
+      threeChicks:{name:"3幺鸡",required:[18,18,18],points:1,allEggTiles:true},
       big:{name:"大蛋",required:[],open:2,concealed:4}},
     bigEggTiles:[18,9,31,32,33],chick:18,kong:{open:1,concealed:2,supplement:1},
     fans:{standing:1,selfDraw:1,dealerWin:1,dealerDiscard:1,duiBao:2,moBao:1}
@@ -27,6 +28,12 @@
   const hasDragon=(hand,melds=[])=>[...hand,...meldTiles(melds)].some(tile=>tile>=31);
   const hasKong=(melds=[])=>melds.some(meld=>meld.type==="gang");
   const eggTypeName=type=>config.eggs[type]?.name||({anGang:"暗杠",mingGang:"明杠"}[type])||"蛋";
+  const eggTiles=Object.freeze([...new Set([...Object.values(config.eggs).flatMap(egg=>egg.required),...config.bigEggTiles])].sort((a,b)=>a-b));
+  function canSupplementEgg(egg,tile){
+    if(!egg||egg.standardGang||!Number.isInteger(tile)||tile<0||tile>=config.tileKinds)return false;
+    const rule=config.eggs[egg.type];
+    return !!rule&&(rule.allEggTiles?eggTiles.includes(tile):tile===config.chick||rule.required.includes(tile));
+  }
   function groupPoints(group){
     if(group.type==="gang"||group.standardGang){
       const hidden=group.concealed===true||group.type==="anGang";
@@ -256,7 +263,7 @@ function computeScore({winner, loser=null, method="自摸", pattern, selfDraw=is
 }
 
 
-  const api={config,tileCount,isSuit,isTerminalOrHonor,isSelfDraw,meldTiles,tileInHandWithoutWin,isBigEggTile,eggTypeName,
+  const api={config,tileCount,isSuit,isTerminalOrHonor,isSelfDraw,meldTiles,tileInHandWithoutWin,isBigEggTile,eggTypeName,eggTiles,canSupplementEgg,
     groupPoints,computeGroupScore,hasAllThreeSuits,hasYaoJiu,hasDragon,hasKong,coreWin};
   Object.assign(api,{chiPatterns,isWinning,isWinningStandard,isQiDui,isHaoQiDui,isStanding,canWinWithPair,canWinByCompletingPair,canWinWithMiddleSequence,canWinWithEdgeSequence,isJiaHu,allTripletPartition,isPiaoHu,isPiaoDing,patternBase,patternName,detectPattern,hasATriplet,hasTripletMeld,canFormMelds,computeScore});
   root.MahjongRules=Object.freeze(api);

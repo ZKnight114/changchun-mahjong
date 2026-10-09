@@ -156,7 +156,7 @@ function knownTiles(viewer=null) {
     ...state.eggs.flatMap(eggs=>eggs.filter(egg=>!egg.standardGang).flatMap(egg=>egg.tiles))];
 }
 function canDrawReplacement() { return state.wall.length>0; }
-const isWildcardChick = egg => egg.tiles.includes(18)&&egg.type!=="big";
+const isWildcardChick = egg => egg.tiles.includes(18)&&egg.type!=="big"&&egg.type!=="threeChicks";
 // Starting eggs leave the hand. They occupy a completed group for hand-shape
 // checks, while standard kongs are already represented in state.melds.
 function shapeMelds(player) {
@@ -1942,6 +1942,7 @@ function eggWildcardSets(hand,required) {
 
 function detectStartEggs(hand) {
   const eggs=[];
+  if(tileCount(hand,RULES.chick)>=3)eggs.push({type:"threeChicks",label:eggTypeName("threeChicks"),tiles:Array(3).fill(RULES.chick),concealed:true});
   const winds=[27,28,29,30].filter(tile=>hand.includes(tile));
   // 每一种可用实牌组合都给玩家选择：四风取任意三风，幺鸡也可代缺风。
   for(let used=winds.length;used>=0;used--) {
@@ -1983,11 +1984,9 @@ function canAddEgg(player,tile,eggIndex=null) {
 }
 
 function eggSupplementIndex(egg,tile) {
-  if(!egg||egg.standardGang) return -1;
-  const required=RULES.eggs[egg.type]?.required;
-  if(!required||!(tile===18||required.includes(tile))) return -1;
+  if(!window.MahjongRules.canSupplementEgg(egg,tile)) return -1;
   // 补蛋追加实牌，不替换起手下蛋时亮出的牌。三风可补任意风，
-  // 喜、幺、9 蛋可补本系列牌；幺鸡可补任何已下的蛋。
+  // 喜、幺、9 蛋可补本系列牌；幺鸡可补任何已下的蛋；3幺鸡可补所有蛋牌。
   return egg.tiles.length;
 }
 
