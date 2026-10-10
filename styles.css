@@ -4,6 +4,10 @@
    Same-selector overrides and removed topbar styles have been consolidated. */
 :root{--felt: #086455;--felt-dark: #043f37;--gold: #e9b949;--cream: #fff9e9;--ink: #14251f;--danger: #c53b36;font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif}
 *{box-sizing: border-box}
+/* Keep page-level horizontal overscroll from becoming browser history swipe.
+   Dialog/menu scrollers remain native; OS edge gestures may still override. */
+html,body{overscroll-behavior-x:none}
+.modal,.game-menu,.action-options,.own-waits{overscroll-behavior:contain}
 body{margin: 0;min-width: 340px;min-height: 100dvh;color: white;background: #061f1c;overflow: auto}
 button{font: inherit}
 .game-shell{min-height: 100dvh;display: flex;flex-direction: column;background: radial-gradient(circle at 50% 40%, #177868, #06483e 60%, #032f2a)}
@@ -91,7 +95,7 @@ button.tile:hover{transform:translateY(-7px);filter:brightness(1.07)}
 .seat-left .concealed-row,.seat-right .concealed-row{flex-wrap:nowrap}
 .seat-left .tile{transform:rotate(90deg);transform-origin:center}
 .seat-right .tile{transform:rotate(-90deg);transform-origin:center}
-.tile:disabled,.tile.disabled{cursor:not-allowed;filter:grayscale(.55);opacity:.68}
+.tile:disabled,.tile.disabled{cursor:not-allowed;filter:grayscale(1);opacity:1}
 .tile.tenpai{outline:3px solid #54d793}
 .tile.danger{outline:3px solid #e8534c}
 .count-bubble{color:#fff9;font-size:11px;margin-top:3px}
@@ -145,6 +149,16 @@ button.tile:hover{transform:translateY(-7px);filter:brightness(1.07)}
 .mode-choices{display:flex;flex-direction:column;gap:12px}
 .mode-choice-resume{border-color:#5b91ab;background:linear-gradient(#e3f5ff,#b8d9eb);color:#17445c;box-shadow:0 4px 0 #56869f}
 .mode-dialog [hidden]{display:none}
+.home-install-btn{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:32px;height:32px;padding:5px;border:1px solid #6b9a7c66;border-radius:9px;background:#e4ecdc;color:#225c46;cursor:pointer}
+.home-install-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.home-install-btn:hover{background:#d4e8ce}
+.home-install-btn:focus-visible{outline:2px solid #2f785a;outline-offset:2px}
+.home-install-btn:disabled{cursor:wait}
+.mode-dialog #modeTitle{padding-inline:34px}
+.install-dialog{width:min(420px,90vw);text-align:center}
+.install-dialog h2{font-size:22px}
+.install-dialog p{line-height:1.65;margin:0 0 18px;white-space:pre-line;overflow-wrap:anywhere}
+.install-dialog .primary-btn{min-width:100px}
 .mode-dialog .mode-save-hint{font-size:11px;margin:2px 0 0}
 .online-dialog{width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:25px;overflow:auto}
 .online-dialog[hidden],.online-dialog [hidden]{display:none}

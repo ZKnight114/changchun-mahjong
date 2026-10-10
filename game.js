@@ -2761,11 +2761,41 @@ $("rulesDialog").querySelector(".modal-close").onclick=()=>$("rulesDialog").clos
 $("soundBtn").onclick=()=>{state.sound=!state.sound;$("soundState").textContent=state.sound?"开":"关";$("soundBtn").setAttribute("aria-label",state.sound?"关闭声音":"开启声音");if(state.sound)beep(440,.05);else stopGameSound();};
 $("errorBannerClose").onclick=()=>{resourceErrorDismissed=true;$("errorBanner").hidden=true;};
 $("volumeSlider").oninput=e=>{state.volume=+e.target.value/100;if(activeSound)activeSound.volume=state.volume;else if(state.volume>0)beep(440,.035);};
+// Cancel one-finger drags on the playing surface, including physical-screen
+// edges when the portrait board is CSS-rotated. Do not rewrite history or
+// simulate taps: normal selection/double-tap and native UI scrolling survive.
+let tableTouchStart=null;
+function navigationMatchActive(){return state.phase!=="idle"&&!state.match.complete;}
+function beginTableTouch(event) {
+  tableTouchStart=null;
+  if(!navigationMatchActive()||event.touches?.length!==1)return;
+  const target=event.target;
+  if(!target?.closest?.(".game-shell")
+    ||target.closest("dialog,input,textarea,select,[contenteditable],.game-menu,.action-options,.own-waits"))return;
+  const touch=event.touches[0];
+  tableTouchStart={id:touch.identifier,x:touch.clientX,y:touch.clientY};
+}
+function blockTableSwipe(event) {
+  if(!navigationMatchActive()||event.touches?.length!==1){tableTouchStart=null;return;}
+  if(!tableTouchStart)return;
+  const touch=event.touches[0];
+  if(touch.identifier!==tableTouchStart.id){tableTouchStart=null;return;}
+  if(Math.hypot(touch.clientX-tableTouchStart.x,touch.clientY-tableTouchStart.y)>4&&event.cancelable)
+    event.preventDefault();
+}
+document.addEventListener("touchstart",beginTableTouch,{capture:true,passive:true});
+document.addEventListener("touchmove",blockTableSwipe,{capture:true,passive:false});
+for(const type of ["touchend","touchcancel"])document.addEventListener(type,()=>{tableTouchStart=null;},{capture:true,passive:true});
 for(const type of ["pointerdown","touchend","keydown"])document.addEventListener(type,unlockAudio,{capture:true,passive:true});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(state.pending&&!state.onlinePaused){const cb=state.pending.onPass;state.pending=null;setActions();cb();}else if(!$("gameMenu").hidden)setMenuOpen(false);});
 window.addEventListener?.("error",event=>{if(event.target?.tagName==="IMG")showResourceError("麻将牌图片加载失败，请检查网络后刷新重试。");},true);
 window.addEventListener?.("pagehide",saveSoloNow);
-window.addEventListener?.("beforeunload",saveSoloNow);
+window.addEventListener?.("beforeunload",event=>{
+  saveSoloNow();
+  // Supported browsers ask before leaving an unfinished match. Mobile OS
+  // navigation may skip this event; pagehide persistence remains the fallback.
+  if(navigationMatchActive()){event.preventDefault?.();event.returnValue="";}
+});
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden){saveSoloNow();stopGameSound();}
   else if(audioGestureSeen)void unlockAudio();

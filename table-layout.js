@@ -178,7 +178,7 @@
     global.requestAnimationFrame(()=>{queued=false;layout();});
   }
   const clamp=(value,min,max)=>Math.max(min,Math.min(value,max));
-  const countMarkers=new Map();
+  const countMarkers=new Map(),groupMarkers=new Map();
   const textMeasure=document.createElement('canvas').getContext('2d');
   function frame(tile){
     if(tile.parentElement.classList.contains("table-tile-box"))return tile.parentElement;
@@ -224,7 +224,7 @@
     }
     let countLayer=document.getElementById("tableCountLayer");
     if(!countLayer){countLayer=document.createElement("div");countLayer.id="tableCountLayer";countLayer.className="table-count-layer";countLayer.setAttribute("aria-hidden","true");table.append(countLayer);}
-    const activeCounts=new Set(),countRequests=[],countObstacles=[],tileFaces=[];
+    const activeCounts=new Set(),activeGroups=new Set(),countRequests=[],labelRequests=[],countObstacles=[],tileFaces=[];
     function updateCount(box,r,quad){
       const source=box.querySelector(":scope > .live-egg-count");if(!source)return;
       activeCounts.add(source);
@@ -239,6 +239,8 @@
       box.dataset.kind=kind;box.dataset.seat=String(seat);
       box.classList.toggle("raised",tile.classList.contains("selected"));
       box.classList.toggle("draw-highlight",tile.classList.contains("drawn"));
+      box.classList.toggle("inactive-hand",seat===0&&kind==="hand"&&tile.classList.contains("disabled"));
+      box.classList.toggle("latest-highlight",kind==="river"&&tile.classList.contains("latest"));
     }
     function card(tile,x,y,standing,seat,size=58,depth=84,kind="open"){
       const side=seat===1||seat===3;
@@ -300,13 +302,22 @@
     const groupTiles=group=>[...group.querySelectorAll(".tile")];
     function groupLabel(group,rects){
       if(!rects.length)return;
-      const r={left:Math.min(...rects.map(r=>r.left)),top:Math.min(...rects.map(r=>r.top))},
+      const r={left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),top:Math.min(...rects.map(r=>r.top)),bottom:Math.max(...rects.map(r=>r.bottom))},
         countSpace=group.querySelector('.live-egg-count')?clamp(width*.009,8,11)+3:0;
       group.style.setProperty("--group-x",`${r.left}px`);group.style.setProperty("--group-y",`${Math.max(0,r.top-13-countSpace)}px`);
       const style=global.getComputedStyle(group,'::after');
+      // Labels cannot live under the public tile's million-level depth order
+      // or a sibling set. Reuse foreground text nodes, not the tile images.
+      activeGroups.add(group);
+      let marker=groupMarkers.get(group);
+      if(!marker){marker=document.createElement('span');marker.className='table-group-label';marker._groupSource=group;countLayer.append(marker);groupMarkers.set(group,marker);}
+      if(marker.textContent!==group.dataset.label)marker.textContent=group.dataset.label||'';
+      group.setAttribute('aria-label',group.dataset.label||'');
+      Object.assign(marker.style,{left:group.style.getPropertyValue('--group-x'),top:group.style.getPropertyValue('--group-y'),
+        fontWeight:style.fontWeight,fontSize:style.fontSize,fontFamily:style.fontFamily});
       textMeasure.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
       const labelWidth=textMeasure.measureText(group.dataset.label||'').width;
-      if(labelWidth)countObstacles.push(rectPolygon(r.left,Math.max(0,r.top-13-countSpace),labelWidth+6,13));
+      if(labelWidth)labelRequests.push({group,marker,rect:r,left:r.left,top:Math.max(0,r.top-13-countSpace),width:labelWidth+6,height:13});
     }
     // One reserved flat-front lane. Neither the camera nor another player's
     // hand count changes its baseline, scale, badge or action area.
@@ -392,6 +403,7 @@
       });
     }
     for(const [source,marker] of countMarkers)if(!activeCounts.has(source)){marker.remove();countMarkers.delete(source);}
+    for(const [source,marker] of groupMarkers)if(!activeGroups.has(source)){marker.remove();groupMarkers.delete(source);}
     function place(element,left,top){
       if(!element)return;
       element.style.left=`${clamp(left,6,width-element.offsetWidth-6)}px`;
@@ -448,6 +460,33 @@
     for(const element of [...document.querySelectorAll('.seat-badge-slot'),waits,action,status,ring]){
       if(element&&element.offsetWidth&&element.offsetHeight&&global.getComputedStyle(element).display!=='none'&&global.getComputedStyle(element).visibility!=='hidden')
         countObstacles.push(rectPolygon(parseFloat(element.style.left)||0,parseFloat(element.style.top)||0,element.offsetWidth,element.offsetHeight));
+    }
+    // Keep hands above everything, but move a group caption into a nearby
+    // clear strip if the preferred caption position falls under a hand/UI.
+    const labelBlocks=[...countObstacles.map(bounds),...tileFaces.filter(face=>face.box.dataset.kind==='hand').map(face=>({
+      left:parseFloat(face.box.style.left),top:parseFloat(face.box.style.top),
+      right:parseFloat(face.box.style.left)+parseFloat(face.box.style.width),
+      bottom:parseFloat(face.box.style.top)+parseFloat(face.box.style.height)})),
+      ...countRequests.map(request=>{const corner=countCorner(request.quad),size=request.size;
+        return {left:corner[0]-size,top:corner[1]-size,right:corner[0]+size,bottom:corner[1]+size};})];
+    for(const request of labelRequests){
+      const w=request.width,h=request.height,
+        xs=[request.left,request.rect.right-w,request.left+6,request.left-6,request.left+12,request.left-12,
+          request.left+w+3,request.left-w-3],
+        ys=[request.top,...Array.from({length:8},(_,i)=>request.top-(i+1)*(h+2)),request.rect.bottom+2,
+          ...Array.from({length:4},(_,i)=>request.top+(i+1)*(h+2))];
+      let best=null,bestCost=Infinity;
+      for(const initialX of xs)for(const initialY of ys){
+        const x=clamp(initialX,2,width-w-2),y=clamp(initialY,2,height-h-2),rect={left:x,top:y,right:x+w,bottom:y+h};
+        if(labelBlocks.some(block=>Math.min(rect.right,block.right)-Math.max(rect.left,block.left)>-.5
+          &&Math.min(rect.bottom,block.bottom)-Math.max(rect.top,block.top)>-.5))continue;
+        const cost=Math.hypot(x-request.left,y-request.top);
+        if(cost<bestCost){bestCost=cost;best=rect;}
+      }
+      const rect=best||{left:request.left,top:request.top,right:request.left+w,bottom:request.top+h};
+      Object.assign(request.marker.style,{left:`${rect.left}px`,top:`${rect.top}px`});
+      request.group.style.setProperty('--group-x',`${rect.left}px`);request.group.style.setProperty('--group-y',`${rect.top}px`);
+      labelBlocks.push(rect);countObstacles.push(rectPolygon(rect.left,rect.top,w,h));
     }
     const positions=attachedCounts(countRequests,tileFaces,countObstacles,width,height);
     countRequests.forEach((request,i)=>{
