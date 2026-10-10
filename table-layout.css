@@ -66,8 +66,6 @@ body[data-tile-theme="b"] .tile-back-edges .top-edge{stroke:#c5a858}
 .table .live-egg-count{opacity:0;pointer-events:none}
 .table-count-layer{position:absolute;inset:0;z-index:28;pointer-events:none}
 .table-count-badge{position:absolute;display:grid;place-items:center;padding:0;border:1px solid #fff0d0;border-radius:3px;background:#bc4230;color:#fff7e4;box-shadow:0 1px 3px #0006;font-weight:700;line-height:1;pointer-events:none;box-sizing:border-box}
-.table-count-leader{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:-1;pointer-events:none}
-.table-count-leader path{fill:none;stroke:#fff0d0;stroke-width:1;opacity:.8}
 .table .seat .seat-badge-slot{position:absolute;inset:auto;display:block;width:max-content;height:auto;max-width:min(170px,20cqw);padding:0;margin:0;transform:none;writing-mode:horizontal-tb;pointer-events:none;z-index:5}
 .table .player-badge{display:flex;flex-direction:row;align-items:center;gap:6px;width:auto;max-width:none;margin:0;padding:3px 5px 3px 3px;border:1px solid #83b5a33d;border-radius:7px;background:#062e28e0;box-shadow:none;writing-mode:horizontal-tb;animation:none;color:#f3ecd4;font-size:clamp(12px,1.05cqw,15px);line-height:1.2}
 .table .player-badge.current{background:#194c3fe8;border-color:#edd36b;box-shadow:none;color:#ffe7a7}
@@ -93,7 +91,7 @@ body[data-tile-theme="b"] .tile-back-edges .top-edge{stroke:#c5a858}
 .table .wind.south{bottom:2px;left:50%;transform:translateX(-50%)}
 .table .wind.west{left:5px;top:50%;transform:translateY(-50%)}
 .table .wind.east{right:5px;top:50%;transform:translateY(-50%)}
-.table .status-text{position:absolute;top:0;left:0;width:55%;height:auto;max-height:38px;min-height:0;margin:0;padding:2px 5px;text-align:center;font-size:clamp(12px,1.1cqw,16px);line-height:1.3;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.table .status-text{position:absolute;top:0;left:0;display:block;width:55%;max-width:none;height:auto;max-height:38px;min-height:0;margin:0;padding:2px 5px;text-align:center;font-size:clamp(12px,1.1cqw,16px);line-height:1.3;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .table[data-actions="true"] .status-text{visibility:hidden}
 /* status is a child of the counter in the original markup; position it in
    table coordinates without moving game logic or the live region. */
@@ -136,9 +134,10 @@ body[data-tile-theme="b"] .tile-back-edges .top-edge{stroke:#c5a858}
 .table :is(.seat-left,.seat-right,.seat-bottom) .player-badge{width:100%;flex-direction:row}
 .table :is(.seat-left,.seat-right,.seat-bottom) .player-profile-text{flex:1;min-width:0}
 .table :is(.seat-left,.seat-right,.seat-bottom) .player-profile-score{flex-wrap:wrap;gap:2px}
-.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) .avatar{width:20px;height:24px;font-size:13px}
+.table :is(.seat-left,.seat-right,.seat-bottom) .avatar{flex:0 0 auto;aspect-ratio:1;min-width:26px;min-height:26px;width:clamp(26px,4.5cqw,40px);height:clamp(26px,4.5cqw,40px)}
+.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) .avatar{flex-basis:24px;min-width:24px;min-height:24px;width:24px;height:24px;font-size:13px}
 .table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) .player-badge{gap:3px}
-.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) :is(.dealer,.ting-badge,.seen-bao-badge){position:static;min-width:13px;height:13px;line-height:11px;font-size:9px}
+.table[data-compact="true"] :is(.seat-left,.seat-right,.seat-bottom) :is(.dealer,.ting-badge,.seen-bao-badge){position:static;min-width:13px;width:13px;height:13px;padding:0;line-height:11px;font-size:9px}
 @container (max-height:319px){
   /* Short browser viewports need the score/status on one row, not a taller
      profile that grows upward into the side hand. */

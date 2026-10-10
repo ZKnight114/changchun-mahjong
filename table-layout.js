@@ -21,6 +21,54 @@
       top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))};
   }
   function flatThickness(size){return Math.max(4,size*.42);}
+  function publicDepth(x,y,seat,kind){
+    const depth=Math.round((3000-dot(subtract([x,y,0],eye),forward))*1000);
+    // The right-hand own public lane has equal camera depth along the row.
+    // Explicit ordering prevents a later DOM sibling covering the left tile.
+    return depth-(seat===0&&kind==='open'?Math.round(x+500):0);
+  }
+  const polygonArea=points=>Math.abs(points.reduce((sum,a,i)=>{const b=points[(i+1)%points.length];return sum+a[0]*b[1]-b[0]*a[1];},0)/2);
+  function countCorner(quad){
+    const r=bounds(quad),w=Math.max(1,r.right-r.left),h=Math.max(1,r.bottom-r.top);
+    return quad.slice().sort((a,b)=>Math.hypot((r.right-a[0])/w,(a[1]-r.top)/h)-Math.hypot((r.right-b[0])/w,(b[1]-r.top)/h))[0];
+  }
+  function rectangleOverlapArea(quad,x,y,size){
+    const r=bounds(quad);
+    if(r.right<=x||r.left>=x+size||r.bottom<=y||r.top>=y+size)return 0;
+    return polygonArea(splitFace(splitFace(splitFace(splitFace(quad,0,x,true).back,0,x+size,false).back,1,y,true).back,1,y+size,false).back);
+  }
+  function attachedCounts(requests,faces,obstacles,width,height){
+    const occupied=[],positions=[],blocked=obstacles.map(bounds),
+      measuredFaces=faces.map(face=>({...face,area:Math.max(1,polygonArea(face.quad)),rect:bounds(face.quad)})),
+      hits=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>.01&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>.01;
+    for(const request of requests){
+      const corner=countCorner(request.quad),area=polygonArea(request.quad);
+      let best=null,bestCost=Infinity;
+      for(let size=request.size;size>=(width<600?6:7);size--){
+        const edges=[...occupied,...blocked],
+          xs=[.35,.2,0,.5,.65,.8,1].map(f=>corner[0]-size*f),
+          ys=[.8,1,.5,.2,0].map(f=>corner[1]-size*f);
+        for(const edge of edges){xs.push(edge.right+.1,edge.left-size-.1);ys.push(edge.bottom+.1,edge.top-size-.1);}
+        for(const x of xs.filter(x=>x>=corner[0]-size&&x<=corner[0]))for(const y of ys.filter(y=>y>=corner[1]-size&&y<=corner[1])){
+          const fx=(corner[0]-x)/size,fy=(corner[1]-y)/size;
+          if(x<1||y<1||x+size>width-1||y+size>height-1)continue;
+          const rect={left:x,top:y,right:x+size,bottom:y+size};
+          if(occupied.some(p=>hits(rect,p))||blocked.some(p=>hits(rect,p)))continue;
+          let worst=rectangleOverlapArea(request.quad,x,y,size)/Math.max(1,area);
+          for(const face of measuredFaces)if(face.box!==request.box&&hits(rect,face.rect))
+            worst=Math.max(worst,rectangleOverlapArea(face.quad,x,y,size)/face.area);
+          const cost=worst*100+(request.size-size)*.5+Math.hypot(fx-.35,fy-.8)*.1;
+          if(cost<bestCost){bestCost=cost;best={left:x,top:y,size};}
+        }
+        if(best&&bestCost<5)break;
+      }
+      // Never detach a number from its tile. Extremely tight scenes may
+      // overlap a tiny corner, but cannot create remote labels or leaders.
+      if(!best)best={left:corner[0]-request.size*.35,top:corner[1]-request.size*.8,size:request.size};
+      occupied.push({left:best.left,top:best.top,right:best.left+best.size,bottom:best.top+best.size});positions.push(best);
+    }
+    return positions;
+  }
   function riverPlan(seat,count){
     const horizontal=seat===0||seat===2,columns=horizontal?13:6,rows=Math.ceil(count/columns),
       cellY=seat===0?Math.min(50,120/Math.max(2,rows)):Math.min(52,(horizontal?160:220)/Math.max(horizontal?3:4,rows)),
@@ -58,35 +106,6 @@
       const range=ps=>ps.map(p=>dot(p,axis)/length),x=range(a),y=range(b);
       return Math.min(Math.max(...x),Math.max(...y))-Math.max(Math.min(...x),Math.min(...y))>.01;
     }));
-  }
-  // Counts are annotations, not part of a tile texture. Resolve them only
-  // after ALL tiles and UI have their final positions, including both lanes.
-  function placeCounts(requests,obstacles,width,height){
-    const occupied=obstacles.slice(),result=[];
-    for(const request of requests){
-      const {preferred,size}=request,valid=([x,y])=>x>=2&&y>=2&&x+size<=width-2&&y+size<=height-2
-        &&!occupied.some(p=>polygonsOverlap(rectPolygon(x-1,y-1,size+2,size+2),p));
-      let position=valid(preferred)?preferred:null;
-      // Nearest free location wins; no changing tile size or masking digits.
-      for(let radius=2;!position&&radius<=80;radius+=2){
-        const candidates=[];
-        for(let offset=-radius;offset<=radius;offset+=2){
-          candidates.push([preferred[0]+offset,preferred[1]-radius],[preferred[0]+offset,preferred[1]+radius],
-            [preferred[0]-radius,preferred[1]+offset],[preferred[0]+radius,preferred[1]+offset]);
-        }
-        candidates.sort((a,b)=>Math.hypot(a[0]-preferred[0],a[1]-preferred[1])-Math.hypot(b[0]-preferred[0],b[1]-preferred[1]));
-        position=candidates.find(valid)||null;
-      }
-      if(!position){
-        const candidates=[];
-        for(let y=2;y+size<=height-2;y+=6)for(let x=2;x+size<=width-2;x+=6)candidates.push([x,y]);
-        candidates.sort((a,b)=>Math.hypot(a[0]-preferred[0],a[1]-preferred[1])-Math.hypot(b[0]-preferred[0],b[1]-preferred[1]));
-        position=candidates.find(valid);
-      }
-      if(!position)throw Error("No clear space for egg count annotation");
-      occupied.push(rectPolygon(position[0],position[1],size,size));result.push(position);
-    }
-    return result;
   }
   // Round the projected solid's silhouette, not just its bitmap front.
   // Radius is limited by the adjacent edges to preserve thin thickness faces.
@@ -148,7 +167,7 @@
     }
     throw Error("Public sets exceed layout capacity");
   }
-  const geometry={project,camera,vertices,matrix,bounds,plane,outerPlane,tableLift,packGroups,flatThickness,convexHull,roundedPath,faceAspect,splitFace,riverPlan,rectPolygon,polygonsOverlap,placeCounts};
+  const geometry={project,camera,vertices,matrix,bounds,plane,outerPlane,tableLift,packGroups,flatThickness,convexHull,roundedPath,faceAspect,splitFace,riverPlan,rectPolygon,polygonsOverlap,publicDepth,polygonArea,countCorner,rectangleOverlapArea,attachedCounts};
   if(typeof module!=="undefined"&&module.exports)module.exports=geometry;
   if(!global.document)return;
   const document=global.document,table=document.querySelector(".table");
@@ -205,42 +224,34 @@
     }
     let countLayer=document.getElementById("tableCountLayer");
     if(!countLayer){countLayer=document.createElement("div");countLayer.id="tableCountLayer";countLayer.className="table-count-layer";countLayer.setAttribute("aria-hidden","true");table.append(countLayer);}
-    const activeCounts=new Set(),countRequests=[],countObstacles=[];
-    function updateCount(box,r,quad,side=0){
+    const activeCounts=new Set(),countRequests=[],countObstacles=[],tileFaces=[];
+    function updateCount(box,r,quad){
       const source=box.querySelector(":scope > .live-egg-count");if(!source)return;
       activeCounts.add(source);
       let marker=countMarkers.get(source);
       if(!marker){marker=document.createElement("sup");marker.className="table-count-badge";countLayer.append(marker);countMarkers.set(source,marker);}
+      marker._countSource=source;
       if(marker.textContent!==source.textContent)marker.textContent=source.textContent;
-      const badgeSize=clamp(width*.008,11,12),face=bounds(quad),
-        countTop=(face.top+face.bottom-badgeSize)/2,
-        band=side?bounds(splitFace(splitFace(quad,1,countTop,true).back,1,countTop+badgeSize,false).back):face;
-      // Counts share one foreground layer; they cannot be occluded by the
-      // stacking context of the next tile. Place them OUTSIDE the face:
-      // above horizontal groups, outward from each vertical public lane.
-      countRequests.push({marker,size:badgeSize,quad:quad.map(([x,y])=>[x+r.left,y+r.top]),
-        preferred:[side<0?r.left+band.left-badgeSize-2:side>0?r.left+band.right+2:r.left+(face.left+face.right-badgeSize)/2,
-          side?r.top+countTop:r.top-badgeSize-2]});
-      Object.assign(marker.style,{
-        width:`${badgeSize}px`,minWidth:`${badgeSize}px`,height:`${badgeSize}px`,fontSize:`${clamp(badgeSize*.78,10,11)}px`});
+      const face=bounds(quad),badgeSize=clamp(Math.min(face.right-face.left,face.bottom-face.top)*.5,8,11);
+      countRequests.push({box,marker,size:Math.round(badgeSize),quad:quad.map(([x,y])=>[x+r.left,y+r.top])});
     }
     function decorate(box,tile,seat,kind){
       box.dataset.kind=kind;box.dataset.seat=String(seat);
       box.classList.toggle("raised",tile.classList.contains("selected"));
       box.classList.toggle("draw-highlight",tile.classList.contains("drawn"));
     }
-    function card(tile,x,y,standing,seat,size=58,depth=84,kind="open",countSide=0){
+    function card(tile,x,y,standing,seat,size=58,depth=84,kind="open"){
       const side=seat===1||seat===3;
       const v=vertices(x,y,standing?(side?22:size):(side&&kind!=="river"?depth:size),
         standing?(side?size:22):(side&&kind!=="river"?size:depth),standing?size*84/58:flatThickness(size));
       const screen=v.map(p),r=bounds(screen),box=frame(tile);
       const local=screen.map(point=>[point[0]-r.left,point[1]-r.top]),radius=clamp(size*.065,1.5,3.5);
-      countObstacles.push(convexHull(screen));
       Object.assign(box.style,{left:`${r.left}px`,top:`${r.top}px`,width:`${r.right-r.left}px`,height:`${r.bottom-r.top}px`,
-        zIndex:String(Math.round(3000-dot(subtract([x,y,0],eye),forward))),clipPath:`path("${roundedPath(convexHull(local),radius)}")`});
+        zIndex:String(publicDepth(x,y,seat,kind)),clipPath:`path("${roundedPath(convexHull(local),radius)}")`});
       const main=standing?(seat===3?[6,5,1,2]:seat===1?[4,7,3,0]:[4,5,1,0])
         :kind!=="river"&&side?(seat===3?[6,5,4,7]:[4,7,6,5]):[7,6,5,4];
       const quad=main.map(i=>[screen[i][0]-r.left,screen[i][1]-r.top]);
+      tileFaces.push({box,quad:main.map(i=>screen[i])});
       const outline=box.querySelector('.tile-body-outline');
       outline.setAttribute('viewBox',`0 0 ${r.right-r.left} ${r.bottom-r.top}`);
       outline.firstChild.setAttribute('d',roundedPath(convexHull(local),radius));
@@ -264,16 +275,16 @@
         edges.querySelector(".back-edge").setAttribute("d",contour(main));
         edges.querySelector(".top-edge").setAttribute("d",contour(standing?[7,6,5,4]:main));
       }
-      updateCount(box,r,quad,countSide);
+      updateCount(box,r,quad);
       return r;
     }
     function frontCard(tile,left,top,size,aspect){
       const faceHeight=size*aspect,lip=Math.max(4,size*.16),box=frame(tile);
       const r={left,top,right:left+size,bottom:top+faceHeight+lip};
-      countObstacles.push(rectPolygon(left,top,size,faceHeight+lip));
       Object.assign(box.style,{left:`${left}px`,top:`${top}px`,width:`${size}px`,height:`${faceHeight+lip}px`,zIndex:"1500",
         clipPath:`path("${roundedPath([[0,0],[size,0],[size,faceHeight+lip],[0,faceHeight+lip]],clamp(size*.11,2,5))}")`});
       const quad=[[0,lip],[size,lip],[size,faceHeight+lip],[0,faceHeight+lip]];
+      tileFaces.push({box,quad:quad.map(([x,y])=>[x+left,y+top])});
       const outline=box.querySelector('.tile-body-outline');
       outline.setAttribute('viewBox',`0 0 ${size} ${faceHeight+lip}`);
       outline.firstChild.setAttribute('d',roundedPath([[0,0],[size,0],[size,faceHeight+lip],[0,faceHeight+lip]],clamp(size*.11,2,5)));
@@ -290,8 +301,7 @@
     function groupLabel(group,rects){
       if(!rects.length)return;
       const r={left:Math.min(...rects.map(r=>r.left)),top:Math.min(...rects.map(r=>r.top))},
-        horizontal=group.closest('.seat').id==='player0'||group.closest('.seat').id==='player2',
-        countSpace=horizontal&&group.querySelector('.live-egg-count')?clamp(width*.009,11,14)+4:0;
+        countSpace=group.querySelector('.live-egg-count')?clamp(width*.009,8,11)+3:0;
       group.style.setProperty("--group-x",`${r.left}px`);group.style.setProperty("--group-y",`${Math.max(0,r.top-13-countSpace)}px`);
       const style=global.getComputedStyle(group,'::after');
       textMeasure.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
@@ -354,16 +364,16 @@
     for(const seat of [3,1]){
       const tiles=[...document.querySelectorAll(`#player${seat} .seat-hand-slot .tile`)];
       const sideSpan=height<320?350:410;
-      const centres=size=>{const step=Math.min(size+1.5,sideSpan/Math.max(1,tiles.length-1));return tiles.map((_,i)=>[seat===3?-375:375,-55+(tiles.length-1)*step/2-i*step]);},
+      const centres=size=>{const step=Math.min(size+1.5,sideSpan/Math.max(1,tiles.length-1));return tiles.map((_,i)=>[seat===3?-375:375,(height<320?-40:-55)+(tiles.length-1)*step/2-i*step]);},
         size=opponentSize(seat,42,centres),positions=centres(size);
       tiles.forEach((tile,i)=>card(tile,...positions[i],true,seat,size,70,"hand"));
-      // Keep a dedicated clear strip above the local profile. Extra sets
-      // wrap into the second fixed lane rather than growing into that strip.
-      const sets=groups(seat),plan=packGroups(sets.map(g=>groupTiles(g).length),390,2,28,4,22);
+      // One fixed column per side, between its hand and the table rim.
+      // Scale complete sets together if many eggs occupy the same column.
+      const sets=groups(seat),plan=packGroups(sets.map(g=>groupTiles(g).length),620,1,28,4,50),startY=width<600?260:300;
       sets.forEach((group,index)=>{
-        const slot=plan.groups[index],x=(seat===3?-1:1)*(465-slot.lane*45);
-        const countSide=(seat===3?-1:1)*(slot.lane===0?1:-1);
-        groupLabel(group,groupTiles(group).map((tile,i)=>card(tile,x,195-slot.start-plan.size/2-i*plan.step,false,seat,plan.size,plan.size*84/58,"open",countSide)));
+        const slot=plan.groups[index],x=(seat===3?-1:1)*465;
+        group.dataset.publicLane='single';
+        groupLabel(group,groupTiles(group).map((tile,i)=>card(tile,x,startY-slot.start-plan.size/2-i*plan.step,false,seat,plan.size,plan.size*84/58)));
       });
     }
     // Four disjoint river rectangles, all sharing the table's projection.
@@ -396,7 +406,7 @@
       const northBadge=document.querySelector('#player2 .seat-badge-slot'),
         sideTop=Math.max((height-bh)/2-bh-tableLift(height),
           (parseFloat(northBadge?.style.top)||6)+(northBadge?.offsetHeight||0)+8);
-      const target=seat===0?[ownLeft,ownBandTop-bh-11]
+      const target=seat===0?[ownLeft,ownBandTop-bh-(height<320?9:11)]
         :seat===2?[p([385,438,0])[0]+12,p([0,438,70])[1]]
         :seat===3?[6,sideTop]
         :[width-bw-6,sideTop];
@@ -427,30 +437,22 @@
     const uiBottom=ownBandTop-11;
     action.style.maxWidth=`${uiWidth}px`;
     place(action,uiLeft+Math.max(0,(uiWidth-action.offsetWidth)/2),uiBottom-action.offsetHeight);
-    status.style.width=`${uiWidth}px`;
-    place(status,uiLeft,uiBottom-status.offsetHeight);
+    const statusWidth=Math.min(uiWidth,Math.max(48,width-2*uiLeft)),statusLeft=Math.max(uiLeft,width/2-statusWidth/2);
+    status.style.width=`${statusWidth}px`;
+    place(status,statusLeft,uiBottom-status.offsetHeight);
     for(let seat=0;seat<4;seat++){
       const cue=document.getElementById(`actionCue${seat}`);
       const anchor=p(seat===0?[0,-290,0]:seat===2?[0,350,0]:seat===3?[-270,-30,0]:[270,-30,0]);
       place(cue,anchor[0]-cue.offsetWidth/2,anchor[1]-cue.offsetHeight/2);
     }
     for(const element of [...document.querySelectorAll('.seat-badge-slot'),waits,action,status,ring]){
-      if(element&&element.offsetWidth&&element.offsetHeight&&global.getComputedStyle(element).display!=='none')
+      if(element&&element.offsetWidth&&element.offsetHeight&&global.getComputedStyle(element).display!=='none'&&global.getComputedStyle(element).visibility!=='hidden')
         countObstacles.push(rectPolygon(parseFloat(element.style.left)||0,parseFloat(element.style.top)||0,element.offsetWidth,element.offsetHeight));
     }
-    const positions=placeCounts(countRequests,countObstacles,width,height);
+    const positions=attachedCounts(countRequests,tileFaces,countObstacles,width,height);
     countRequests.forEach((request,i)=>{
-      const [left,top]=positions[i];Object.assign(request.marker.style,{left:`${left}px`,top:`${top}px`});
-      // A short leader preserves the association if dense neighbouring sets
-      // force the count away from its preferred edge.
-      let leader=request.marker.querySelector('svg');
-      if(Math.hypot(left-request.preferred[0],top-request.preferred[1])>6){
-        if(!leader){leader=document.createElementNS('http://www.w3.org/2000/svg','svg');leader.classList.add('table-count-leader');leader.append(document.createElementNS(leader.namespaceURI,'path'));request.marker.append(leader);}
-        const center=[left+request.size/2,top+request.size/2],points=request.quad,
-          nearest=points.map((a,j)=>{const b=points[(j+1)%points.length],v=subtract(b,a),t=clamp(dot(subtract(center,a),v)/dot(v,v),0,1);return a.map((n,k)=>n+t*v[k]);})
-            .sort((a,b)=>Math.hypot(...subtract(a,center))-Math.hypot(...subtract(b,center)))[0];
-        leader.firstChild.setAttribute('d',`M${request.size/2},${request.size/2} L${nearest[0]-left},${nearest[1]-top}`);
-      }else if(leader)leader.remove();
+      const {left,top,size}=positions[i];Object.assign(request.marker.style,{left:`${left}px`,top:`${top}px`,
+        width:`${size}px`,minWidth:`${size}px`,height:`${size}px`,fontSize:`${clamp(size*.84,6,10)}px`});
     });
   }
   global.MahjongTable={requestLayout,layout,geometry};

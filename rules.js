@@ -4,8 +4,8 @@
   "use strict";
   const deepFreeze=value=>{Object.values(value).forEach(item=>{if(item&&typeof item==="object")deepFreeze(item);});return Object.freeze(value);};
   const config=deepFreeze({
-    appVersion:"20261009-8",
-    version:"changchun-20261009-1",saveCompatibleVersions:["changchun-20261008-2","changchun-20261008-3","changchun-20261008-4"],
+    appVersion:"20261010-2",
+    version:"changchun-20261010-1",saveCompatibleVersions:["changchun-20261009-1","changchun-20261008-2","changchun-20261008-3","changchun-20261008-4"],
     tileKinds:34,copies:4,circles:4,bao:{mustWin:true},
     patterns:{ping:{name:"平胡",fans:0},jia:{name:"夹胡",fans:1},piao:{name:"飘胡",fans:2},
       piaoding:{name:"飘顶",fans:3},qidui:{name:"七对",fans:3,sevenPairs:true},haoqidui:{name:"豪华七对",fans:4,sevenPairs:true}},

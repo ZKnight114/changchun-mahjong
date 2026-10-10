@@ -7,7 +7,8 @@ const TILE_NAMES = [
   "东风","南风","西风","北风","红中","发财","白板"
 ];
 const WINDS = ["东","南","西","北"];
-let NAMES = ["你","阿岚","小满","老陈"];
+const DEFAULT_NAMES = Object.freeze(["你","老薛","阿雷","小尧子"]);
+let NAMES = [...DEFAULT_NAMES];
 // The four array indexes are the bottom, right, top and left seats on screen.
 const SEAT_DIRECTIONS = ["south","east","north","west"];
 const TILE_FILES = [
@@ -50,8 +51,8 @@ function setTileTheme(theme) {
   window.MahjongCacheTheme?.(theme);
   return true;
 }
-const SOUND_FILES={draw:"draw.wav",discard:"discard-a1.wav",chi:"chi-a2.wav",peng:"peng-a3.wav",gang:"gang-a4.wav",win:"win-h2.wav",drawgame:"drawgame.wav"};
-const ACTION_SOUNDS={chi:"chi",peng:"peng",gang:"gang",egg:"gang",hu:"win"};
+const SOUND_FILES={draw:"draw.wav",discard:"discard-a1.wav",chi:"chi-a2.wav",peng:"peng-a3.wav",gang:"gang-a4.wav",win:"win-h2.wav",ting:"ting.wav",drawgame:"drawgame.wav"};
+const ACTION_SOUNDS={chi:"chi",peng:"peng",gang:"gang",egg:"gang",hu:"win",ting:"ting"};
 const soundCache={};
 let activeSound=null,soundSequence=0,latestSoundEvent=null,guestSoundCursor=null;
 
@@ -232,7 +233,7 @@ function queueActionCue(player,type,commit,recovery=null) {
   setStatus(type==="ting"?`${NAMES[player]}报听`:type==="bao"?`${NAMES[player]}看宝`:`${NAMES[player]}${labels[type]}！`);
   // One sound at the start of the visible action; commits never replay it.
   if(ACTION_SOUNDS[type])playSound(ACTION_SOUNDS[type]);
-  else if(type==="ting"||type==="bao")beep(type==="ting"?740:690,.12);
+  else if(type==="bao")beep(690,.12);
   cue.timer=later(()=>{
     if(state.round!==round||state.actionCue!==cue) return;
     if(banner) banner.classList.remove("show");
@@ -282,8 +283,10 @@ function tileButtonHTML(id, index, drawn=false, winOnly=false) {
 function seatWind(player) { return WINDS[(player-state.match.eastSeat+4)%4]; }
 function matchCircle() { return Math.min(RULES.circles,Math.floor(state.match.dealerAdvances/4)+1); }
 function startMatch() {
-  if(state.onlinePaused)return;
-  state.match={eastSeat:0,dealerAdvances:0,nextDealerAdvances:0,handNumber:0,complete:false};
+  // The authority draws East once per complete match. Screen seats remain
+  // bottom/right/top/left; winds follow clockwise, not a new draw each hand.
+  if(state.onlinePaused||isOnlineGuest())return;
+  state.match={eastSeat:Math.floor(Math.random()*4),dealerAdvances:0,nextDealerAdvances:0,handNumber:0,complete:false};
   state.scores=[0,0,0,0];
   startGame();
   finishLoading();
@@ -419,6 +422,7 @@ function getPlayerSlots(el) {
 
 function renderPlayer(p) {
   const el=$(`player${p}`), slots=getPlayerSlots(el), current=state.current===p && state.phase!=="gameover";
+  $(`river${p}`).setAttribute('aria-label',`${NAMES[p]}的牌河`);
   const ting=state.ting[p];
   const tingLabel=ting?'<span class="ting-badge" title="已报听" aria-label="已报听">听</span>':"";
   const seenBao=state.baopai!==null&&state.baopaiRevealed[p];
@@ -2330,7 +2334,7 @@ function validHostGame(saved) {
     ||!four(value.hands)||!value.hands.every(hand=>Array.isArray(hand)&&hand.length<=14&&hand.every(tile))
     ||!four(value.melds)||!four(value.eggs)||!four(value.ting)||!four(value.scores)
     ||!value.scores.every(Number.isFinite)||![0,1,2,3].includes(value.current)||![0,1,2,3].includes(value.dealer)
-    ||!Number.isInteger(value.round)||!value.match||!Number.isInteger(value.match.dealerAdvances)
+    ||!Number.isInteger(value.round)||!value.match||![0,1,2,3].includes(value.match.eastSeat)||!Number.isInteger(value.match.dealerAdvances)
     ||!["discard","claim","baoReveal","actionCue","gameover"].includes(value.phase))return false;
   for(const rows of [value.melds,value.eggs])if(!rows.every(row=>Array.isArray(row)&&row.length<=8
     &&row.every(group=>Array.isArray(group.tiles)&&group.tiles.length<=136&&group.tiles.every(tile))))return false;
@@ -2440,7 +2444,7 @@ function setOnlineController(role,controller) {
   state.onlineRole=role;state.onlinePaused=false;onlineController=controller;
   onlineInputPermits.clear();guestInputToken=null;
   onlineSession=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  if(role==="solo") NAMES=["你","阿岚","小满","老陈"];
+  if(role==="solo") NAMES=[...DEFAULT_NAMES];
   if($("returnHomeBtn"))$("returnHomeBtn").disabled=role!=="solo";
   return true;
 }
@@ -2510,6 +2514,13 @@ function resumeSoloMatch() {
   if(state.onlineRole!=="solo")return false;
   const saved=readSoloSave();
   if(!saved){refreshSoloResume();return false;}
+  // Rename only the former built-in AI names; online/custom names are not
+  // touched, and no hand, score, wall or continuation data is changed.
+  if(saved.game.names.join(',')==='你,阿岚,小满,老陈'){
+    const aliases={阿岚:'老薛',小满:'阿雷',老陈:'小尧子'},rename=text=>typeof text==='string'?text.replace(/阿岚|小满|老陈/g,name=>aliases[name]):text;
+    saved.game.names=[...DEFAULT_NAMES];saved.game.status=rename(saved.game.status);
+    if(saved.game.result)for(const key of Object.keys(saved.game.result))saved.game.result[key]=rename(saved.game.result[key]);
+  }
   setOnlineController("solo",null);
   if(!importSavedGame(saved.game,false))return false;
   soloMatchActive=true;
@@ -2523,12 +2534,154 @@ function publishOnlineResult() {
 }
 function shortName(id){return id<27?`${id%9+1}${["万","筒","条"][Math.floor(id/9)]}`:["东","南","西","北","中","发","白"][id-27];}
 
-let audioContext;
-function unlockAudio(){try{audioContext??=new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==="suspended")audioContext.resume();}catch{}}
-function beep(freq,duration){if(!state.sound)return;try{unlockAudio();const o=audioContext.createOscillator(),g=audioContext.createGain();o.frequency.value=freq;o.type="triangle";g.gain.setValueAtTime(.055*state.volume,audioContext.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioContext.currentTime+duration);o.connect(g).connect(audioContext.destination);o.start();o.stop(audioContext.currentTime+duration);}catch{}}
+let audioContext,audioResumePromise=null,audioSerial=0,audioGestureSeen=false,pendingAudioEvent=null;
+const decodedSounds=new Map(),soundLoads=new Map(),audioWarnings=new Set();
+const audioDiagnostics={failedLoads:0,failedPlays:0,fallbackPlays:0,lastError:null};
+function noteAudioFailure(kind,name,error) {
+  audioDiagnostics[kind]++;
+  audioDiagnostics.lastError=`${name}: ${error?.message||error}`;
+  const key=`${kind}:${name}`;
+  if(!audioWarnings.has(key)){audioWarnings.add(key);console.warn?.("麻将音效暂未播放，将在后续操作重试：",audioDiagnostics.lastError);}
+}
+function soundElement(name) {
+  // Reuse a preloaded element. Cloning on every move loses both the loaded
+  // media and the gesture permission on some mobile browsers.
+  if(!soundCache[name]) {
+    const audio=new Audio(`assets/sounds/${SOUND_FILES[name]}`);
+    audio.preload="auto";soundCache[name]=audio;
+    audio.load?.();
+  }
+  return soundCache[name];
+}
+function loadSoundBuffer(name) {
+  if(decodedSounds.has(name))return Promise.resolve(decodedSounds.get(name));
+  if(soundLoads.has(name))return soundLoads.get(name);
+  if(!audioContext||typeof fetch!=="function")return Promise.resolve(null);
+  const context=audioContext;
+  const loading=(async()=>{
+    const controller=typeof AbortController==="function"?new AbortController():null;
+    let timeout;
+    try {
+      const request=(async()=>{
+        const response=await fetch(`assets/sounds/${SOUND_FILES[name]}`,controller?{signal:controller.signal}:undefined);
+        if(!response.ok)throw Error(`HTTP ${response.status}`);
+        const bytes=await response.arrayBuffer();
+        // Callback form works with older Safari as well as modern Chromium.
+        return await new Promise((resolve,reject)=>context.decodeAudioData(bytes,resolve,reject));
+      })();
+      const buffer=await Promise.race([request,new Promise((_,reject)=>{
+        timeout=setTimeout(()=>{controller?.abort();reject(Error("音效加载超时"));},8000);
+      })]);
+      if(audioContext===context)decodedSounds.set(name,buffer);return buffer;
+    }catch(error){noteAudioFailure("failedLoads",name,error);return null;}
+    finally{clearTimeout(timeout);if(audioContext===context)soundLoads.delete(name);}
+  })();
+  soundLoads.set(name,loading);return loading;
+}
+function preloadSounds() {
+  for(const name of Object.keys(SOUND_FILES)) {
+    try{soundElement(name);}catch{}
+    // Local file fetch is normally blocked; its reusable media player remains
+    // available. HTTPS builds decode the already cached WAV files only once.
+    if(audioContext&&location.protocol!=="file:")void loadSoundBuffer(name);
+  }
+}
+function soundIsCurrent(event) {
+  return event.serial===audioSerial&&event.round===state.round&&Date.now()<=event.expires
+    &&state.sound&&state.volume>0&&!state.onlinePaused&&!document.hidden;
+}
+function unlockAudio(event) {
+  if(event?.type)audioGestureSeen=true;
+  try {
+    const Constructor=window.AudioContext||window.webkitAudioContext;
+    if(Constructor&&(!audioContext||audioContext.state==="closed")) {
+      audioContext=new Constructor();decodedSounds.clear();soundLoads.clear();
+    }
+    if(audioContext&&audioContext.state!=="running"&&(!audioResumePromise||event?.type)) {
+      // Initiate resume and a silent frame *inside* the gesture, not in the
+      // later AI/animation callback. Repeat after iOS interruption/background.
+      const context=audioContext;
+      const resumed=context.resume();
+      if(event?.type){const silent=context.createBufferSource();silent.buffer=context.createBuffer(1,1,context.sampleRate);silent.connect(context.destination);silent.start();}
+      const attempt=Promise.resolve(resumed).catch(error=>{noteAudioFailure("failedPlays","unlock",error);})
+        .finally(()=>{if(audioResumePromise===attempt)audioResumePromise=null;});
+      audioResumePromise=attempt;
+    }
+    if(audioGestureSeen)preloadSounds();
+  }catch(error){noteAudioFailure("failedPlays","unlock",error);}
+  const ready=audioResumePromise||Promise.resolve();
+  if(event?.type)void ready.then(()=>{
+    const pending=pendingAudioEvent;pendingAudioEvent=null;
+    if(pending&&soundIsCurrent(pending))void playLocalSound(pending);
+  });
+  return ready;
+}
+function attachAudioSource(source,gain,event) {
+  const instance={pause(){try{source.stop();}catch{}source.disconnect();gain.disconnect();},
+    get volume(){return gain.gain.value;},set volume(value){gain.gain.setValueAtTime(value,audioContext.currentTime);}};
+  activeSound=instance;gain.gain.setValueAtTime(state.volume,audioContext.currentTime);
+  source.connect(gain).connect(audioContext.destination);
+  source.onended=()=>{source.disconnect();gain.disconnect();if(activeSound===instance&&event.serial===audioSerial)activeSound=null;};
+  source.start();return instance;
+}
+function beep(freq,duration) {
+  if(!state.sound||state.volume<=0||state.onlinePaused||document.hidden)return;
+  stopGameSound();const serial=audioSerial,round=state.round;
+  void unlockAudio().then(()=>{
+    if(!audioContext||audioContext.state!=="running"||serial!==audioSerial||round!==state.round
+      ||!state.sound||state.volume<=0||state.onlinePaused||document.hidden)return;
+    try {
+      const source=audioContext.createOscillator(),gain=audioContext.createGain();
+      source.frequency.value=freq;source.type="triangle";
+      attachAudioSource(source,gain,{serial});
+      gain.gain.setValueAtTime(.055*state.volume,audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.001,audioContext.currentTime+duration);
+      source.stop(audioContext.currentTime+duration);
+    }catch(error){noteAudioFailure("failedPlays","beep",error);}
+  });
+}
 function stopGameSound(){
+  audioSerial++;pendingAudioEvent=null;
   if(activeSound)try{activeSound.pause();activeSound.currentTime=0;}catch{}
   activeSound=null;
+}
+function playMediaSound(event) {
+  if(!soundIsCurrent(event))return;
+  try {
+    const instance=soundElement(event.name);
+    instance.currentTime=0;instance.volume=state.volume;activeSound=instance;
+    instance.addEventListener?.("ended",()=>{if(activeSound===instance&&event.serial===audioSerial)activeSound=null;},{once:true});
+    Promise.resolve(instance.play()).catch(error=>{
+      if(event.serial!==audioSerial)return;
+      if(activeSound===instance)activeSound=null;
+      noteAudioFailure("failedPlays",event.name,error);
+      // Do not replay old turns. A fresh, blocked cue may retry on the very
+      // next tap; a new action, mute, reset or background cancels it instead.
+      if(error?.name==="NotAllowedError"&&soundIsCurrent(event))pendingAudioEvent=event;
+    });
+  }catch(error){noteAudioFailure("failedPlays",event.name,error);}
+}
+async function playLocalSound(event) {
+  await unlockAudio();
+  if(!soundIsCurrent(event))return;
+  if(!audioContext||location.protocol==="file:")return playMediaSound(event);
+  if(audioContext.state!=="running"){pendingAudioEvent=event;return;}
+  // Slow first-load decoding must not leave the current cue waiting forever.
+  // The media fallback can use its preloaded copy; eventual decoding caches the
+  // sample for later moves but does not replay this move a second time.
+  let deadline;
+  const buffer=await Promise.race([loadSoundBuffer(event.name),new Promise(resolve=>{
+    deadline=setTimeout(()=>resolve(null),800);
+  })]);
+  clearTimeout(deadline);
+  if(!soundIsCurrent(event))return;
+  if(buffer&&audioContext.state==="running") {
+    try {
+      const source=audioContext.createBufferSource();source.buffer=buffer;
+      attachAudioSource(source,audioContext.createGain(),event);return;
+    }catch(error){noteAudioFailure("failedPlays",event.name,error);}
+  }
+  audioDiagnostics.fallbackPlays++;playMediaSound(event);
 }
 function playSound(name,broadcast=true){
   if(!Object.hasOwn(SOUND_FILES,name))return;
@@ -2537,16 +2690,12 @@ function playSound(name,broadcast=true){
   if(broadcast&&isOnlineHost()) {
     latestSoundEvent={name,round:state.round};soundSequence++;publishOnline();
   }
-  if(!state.sound||state.volume<=0)return;
-  try{
-    stopGameSound();
-    const audio=soundCache[name]??=new Audio(`assets/sounds/${SOUND_FILES[name]}`);
-    const instance=audio.cloneNode();
-    instance.volume=state.volume;
-    activeSound=instance;
-    instance.addEventListener?.("ended",()=>{if(activeSound===instance)activeSound=null;},{once:true});
-    instance.play().catch(()=>{if(activeSound===instance)activeSound=null;});
-  }catch{}
+  if(!state.sound||state.volume<=0||state.onlinePaused||document.hidden)return;
+  stopGameSound();
+  const event={name,serial:audioSerial,round:state.round,expires:Date.now()+1500};
+  // The no-WebAudio path stays synchronous (also used by local-file players).
+  if(!(window.AudioContext||window.webkitAudioContext)||location.protocol==="file:")playMediaSound(event);
+  else void playLocalSound(event);
 }
 
 let resourceErrorDismissed=false;
@@ -2612,12 +2761,16 @@ $("rulesDialog").querySelector(".modal-close").onclick=()=>$("rulesDialog").clos
 $("soundBtn").onclick=()=>{state.sound=!state.sound;$("soundState").textContent=state.sound?"开":"关";$("soundBtn").setAttribute("aria-label",state.sound?"关闭声音":"开启声音");if(state.sound)beep(440,.05);else stopGameSound();};
 $("errorBannerClose").onclick=()=>{resourceErrorDismissed=true;$("errorBanner").hidden=true;};
 $("volumeSlider").oninput=e=>{state.volume=+e.target.value/100;if(activeSound)activeSound.volume=state.volume;else if(state.volume>0)beep(440,.035);};
-document.addEventListener("pointerdown",unlockAudio,{once:true});
+for(const type of ["pointerdown","touchend","keydown"])document.addEventListener(type,unlockAudio,{capture:true,passive:true});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(state.pending&&!state.onlinePaused){const cb=state.pending.onPass;state.pending=null;setActions();cb();}else if(!$("gameMenu").hidden)setMenuOpen(false);});
 window.addEventListener?.("error",event=>{if(event.target?.tagName==="IMG")showResourceError("麻将牌图片加载失败，请检查网络后刷新重试。");},true);
 window.addEventListener?.("pagehide",saveSoloNow);
 window.addEventListener?.("beforeunload",saveSoloNow);
-document.addEventListener("visibilitychange",()=>{if(document.hidden)saveSoloNow();});
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){saveSoloNow();stopGameSound();}
+  else if(audioGestureSeen)void unlockAudio();
+});
+window.addEventListener?.("pageshow",()=>{if(audioGestureSeen)void unlockAudio();});
 
 refreshSoloResume();
 // Updates are allowed only at the home screen, never during a match, a
@@ -2630,7 +2783,8 @@ try{$("modeDialog").showModal();}catch(error){showResourceError(`模式选择打
 window.Mahjong={
   makeWall,isWinning,chiPatterns,isQiDui,isHaoQiDui,isStanding,isJiaHu,isPiaoHu,isPiaoDing,
   detectPattern,canChangchunWin,evaluateChangchunWin,getLegalWaits,detectStartEggs,canAddEgg,
-  determineBaopai,isDuiBao,isMoBao,computeScore,patternBase,shortName
+  determineBaopai,isDuiBao,isMoBao,computeScore,patternBase,shortName,
+  audioStatus:()=>({...audioDiagnostics,contextState:audioContext?.state||"media",decodedSounds:decodedSounds.size})
 };
 window.MahjongLive={
   protocolVersion:ONLINE_PROTOCOL,rulesVersion:RULES.version,guestInput,

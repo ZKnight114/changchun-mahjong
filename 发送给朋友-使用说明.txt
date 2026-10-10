@@ -4,7 +4,7 @@
 2. 在解压目录中双击 index.html，即可进行本地人机对局。
 3. 建议用最新版 Chrome 或 Edge 浏览器。
 
-人机对局无需安装或联网；请保留 index.html、rules.js、game.js、online.js、offline.js、styles.css、sw.js、manifest.webmanifest 和 assets 的目录结构，不要只发送 index.html。
+人机对局无需安装或联网；请保留 index.html、rules.js、game.js、online.js、offline.js、styles.css、table-layout.js、table-layout.css、sw.js、manifest.webmanifest 和 assets 的目录结构，不要只发送 index.html。
 
 可选择简单或困难人机，也可四人联机。联机需联网且各家版本一致；推荐把完整游戏部署成网页后分享链接，或输入六位房间码加入。详细的掉线重连、房主恢复和缓存说明见 README.md。
 
